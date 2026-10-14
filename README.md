@@ -36,21 +36,27 @@ TailDrop is unofficial and not affiliated with Tailscale Inc. "Tailscale" and "T
 
 ## Install
 
-From a release: download the zip from [Releases](https://github.com/Yubo-Cao/taildrop/releases), extract it, and run in PowerShell:
+Download `TailDrop-<version>-Setup.exe` from [Releases](https://github.com/Yubo-Cao/taildrop/releases) and run it. Setup works per user and needs no administrator rights. It installs to `%LOCALAPPDATA%\Programs\TailDrop` and adds:
+
+- the Explorer menu;
+- a Start menu shortcut (**TailDrop (native)**);
+- optionally, start at sign-in.
+
+Uninstall it from Settings > Apps.
+
+Without the setup program, extract the release `.zip` and run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-From source, with Visual Studio 2022 or later (Desktop C++ workload and a Windows 11 SDK), run the same command in the repository; it builds first.
+From source, with Visual Studio 2022 or later (Desktop C++ workload and a Windows 11 SDK), run the same command in the repository; it builds first. `uninstall.ps1` removes a script install.
 
-The installer works per user and needs no administrator rights. It copies TailDrop to `%LOCALAPPDATA%\Programs\TailDrop`, adds the Explorer menu, a Start menu shortcut (**TailDrop (native)**), an Apps entry and start at sign-in, then starts it.
-
-- **Windows 11 menu.** The new context menu only shows commands from apps with package identity, which TailDrop gets from a small sparse package. Windows accepts it only signed, or with **Developer Mode** on (Settings > System > For developers). Without either, the command is under **Show more options**. Run `install.ps1` again after turning Developer Mode on.
+- **Windows 11 menu.** The new context menu only shows commands from apps with package identity, which TailDrop gets from a small sparse package. Windows accepts it only signed, or with **Developer Mode** on (Settings > System > For developers). Without either, the command is under **Show more options**. Install again after turning Developer Mode on.
 - **Smart App Control.** While release binaries are unsigned (see [Code signing policy](#code-signing-policy)), Smart App Control blocks them. Turn it off in Windows Security > App & browser control > Smart App Control, or wait for a signed release.
 - **Two notifications?** The Tailscale app shows its own "file received" notification. You can turn that off in Settings > System > Notifications > Tailscale.
 
-To uninstall, use Settings > Apps, or run `uninstall.ps1`. Files still waiting in the inbox are kept unless you pass `-RemoveInbox`.
+Uninstalling keeps files still waiting in the inbox (`uninstall.ps1 -RemoveInbox` moves them to the Recycle Bin).
 
 ## How it works
 
@@ -77,7 +83,7 @@ The UI is drawn with Direct2D in software mode, which keeps GPU drivers out of t
 .\build.ps1 -Config Debug
 ```
 
-The output is `TailDrop.exe`, `TailDropShell.dll` and `TailDrop.msix` (the sparse package). Icons are generated: `python tools/make_icons.py` (needs Pillow) rewrites `assets/` and `package/Assets/`.
+The output is `TailDrop.exe`, `TailDropShell.dll` and `TailDrop.msix` (the sparse package). The setup program is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php): `iscc installer\TailDrop.iss` writes `dist\TailDrop-<version>-Setup.exe`. Icons are generated: `python tools/make_icons.py` (needs Pillow) rewrites `assets/` and `package/Assets/`. `tools/shelltest.cpp` exercises the Explorer command the way File Explorer does.
 
 Set `TAILDROP_LOG=1` before starting TailDrop to log to `%LOCALAPPDATA%\YuboCao\TailDrop\taildrop.log`.
 

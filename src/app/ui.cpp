@@ -805,10 +805,13 @@ void Window::ApplyTheme() {
   }
   backdrop_ = HasSystemBackdrop();
   if (backdrop_) {
-    int type = kind_ == WindowKind::Normal ? 2 /* DWMSBT_MAINWINDOW */ : 3 /* DWMSBT_TRANSIENTWINDOW */;
+    int type = 2;  // DWMSBT_MAINWINDOW: Mica everywhere
     DwmSetWindowAttribute(hwnd_, 38 /* DWMWA_SYSTEMBACKDROP_TYPE */, &type, sizeof(type));
     MARGINS m{-1, -1, -1, -1};
     DwmExtendFrameIntoClientArea(hwnd_, &m);
+    // Popups are rarely the active window (toasts never are), and DWM draws an
+    // inactive window's Mica as flat gray. Keep them looking active.
+    if (kind_ != WindowKind::Normal) DefWindowProcW(hwnd_, WM_NCACTIVATE, TRUE, 0);
   }
   AllowDarkFor(hwnd_);
   Invalidate();
@@ -956,6 +959,9 @@ LRESULT Window::WndProc(UINT msg, WPARAM wp, LPARAM lp) {
       return 0;
     case WM_MOUSEACTIVATE:
       if (kind_ == WindowKind::ToastPopup) return MA_NOACTIVATE;
+      break;
+    case WM_NCACTIVATE:
+      if (kind_ != WindowKind::Normal) return DefWindowProcW(hwnd_, WM_NCACTIVATE, TRUE, lp);
       break;
     case WM_ACTIVATE:
       OnActivate(LOWORD(wp) != WA_INACTIVE);

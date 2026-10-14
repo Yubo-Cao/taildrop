@@ -6,20 +6,17 @@
   Works from a source checkout (builds first) or from an extracted release zip.
   It makes these changes, all per-user:
     - copies TailDrop to %LOCALAPPDATA%\Programs\TailDrop
-    - adds "Send with TailDrop" to the File Explorer context menu
-        * classic menu ("Show more options") through HKCU
-        * Windows 11 menu through a sparse package, when Developer Mode is on
-          or the package is signed
+    - adds "Send with TailDrop" to the File Explorer context menu (menu.ps1)
     - adds a Start menu shortcut, an Apps entry and the sign-in autostart entry
     - starts TailDrop
-  uninstall.ps1 reverts all of it.
+  uninstall.ps1 reverts all of it. Release downloads also include a setup
+  program (TailDrop-<version>-Setup.exe) that does the same with a wizard.
 #>
 param([switch]$NoBuild, [switch]$NoStart)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $dest = Join-Path $env:LOCALAPPDATA 'Programs\TailDrop'
 $appId = 'YuboCao.TailDrop'
-$clsid = '{9639F786-0C93-4CE7-BB89-6F0E749C036D}'
 $settingsKey = 'HKCU:\Software\YuboCao\TailDrop'
 
 # Release zips carry the binaries next to this script; checkouts build them.
@@ -54,50 +51,20 @@ if (Test-Path $dll) {
   catch { Rename-Item $dll ("TailDropShell.{0}.old" -f (Get-Date -Format 'yyyyMMddHHmmss')) }
 }
 foreach ($f in 'TailDrop.exe', 'TailDropShell.dll', 'TailDrop.msix') { Copy-Item (Join-Path $bin $f) $dest -Force }
-Copy-Item (Join-Path $root 'uninstall.ps1') $dest -Force
+Copy-Item (Join-Path $root 'uninstall.ps1'), (Join-Path $root 'menu.ps1') $dest -Force
 Remove-Item (Join-Path $dest 'package') -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $root 'package') (Join-Path $dest 'package') -Recurse
+# -Force on an existing key would wipe its values (the user's settings).
+if (-not (Test-Path $settingsKey)) { New-Item -Path $settingsKey -Force | Out-Null }
 
-# 3. Classic context menu (also what Windows 10 shows).
-$cls = "HKCU:\Software\Classes\CLSID\$clsid"
-New-Item -Path "$cls\InprocServer32" -Force | Out-Null
-Set-Item -Path $cls -Value 'TailDrop Explorer menu'
-Set-Item -Path "$cls\InprocServer32" -Value $dll
-New-ItemProperty -Path "$cls\InprocServer32" -Name ThreadingModel -Value Apartment -Force | Out-Null
-foreach ($type in '*', 'Directory') {
-  $verb = "HKCU:\Software\Classes\$type\shell\$appId"
-  New-Item -Path $verb -Force | Out-Null
-  New-ItemProperty -LiteralPath $verb -Name ExplorerCommandHandler -Value $clsid -Force | Out-Null
-  New-ItemProperty -LiteralPath $verb -Name MUIVerb -Value 'Send with TailDrop' -Force | Out-Null
+# 3. Explorer context menu.
+$menu = & (Join-Path $dest 'menu.ps1') -Register
+if ($menu -ne 'windows11' -and [Environment]::OSVersion.Version.Build -ge 22000) {
+  Write-Host '  Note: "Send with TailDrop" is under "Show more options" for now. For the Windows 11'
+  Write-Host '        menu itself, turn on Settings > System > For developers > Developer Mode and run this again.'
 }
 
-# 4. Windows 11 context menu: the sparse package gives TailDrop the identity
-#    the new menu requires. Windows only accepts it signed, or registered in
-#    place with Developer Mode on.
-New-Item -Path $settingsKey -Force | Out-Null
-$win11 = $false
-if ([Environment]::OSVersion.Version.Build -ge 22000) {
-  $msix = Join-Path $dest 'TailDrop.msix'
-  $signed = (Get-AuthenticodeSignature $msix).Status -eq 'Valid'
-  $devMode = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense -eq 1
-  if ($signed -or $devMode) {
-    try {
-      Get-AppxPackage -Name $appId | Remove-AppxPackage -ErrorAction SilentlyContinue
-      if ($signed) { Add-AppxPackage -Path $msix -ExternalLocation $dest }
-      else { Add-AppxPackage -Register (Join-Path $dest 'package\AppxManifest.xml') -ExternalLocation $dest }
-      $win11 = $true
-    } catch {
-      Write-Warning "Windows 11 menu registration failed: $($_.Exception.Message)"
-    }
-  }
-  if (-not $win11) {
-    Write-Host '  Note: "Send with TailDrop" is under "Show more options" for now. For the Windows 11'
-    Write-Host '        menu itself, turn on Settings > System > For developers > Developer Mode and run this again.'
-  }
-}
-New-ItemProperty -Path $settingsKey -Name Win11Menu -Value ([int]$win11) -PropertyType DWord -Force | Out-Null
-
-# 5. Start menu shortcut. "TailDrop.lnk" is left alone: another app uses that name.
+# 4. Start menu shortcut. "TailDrop.lnk" is left alone: another app uses that name.
 $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'TailDrop (native).lnk'
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
 $s.TargetPath = Join-Path $dest 'TailDrop.exe'

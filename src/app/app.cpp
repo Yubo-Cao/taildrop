@@ -373,7 +373,10 @@ std::wstring App::ConnMessage() const {
 
 int App::Run(const std::vector<std::wstring>& args) {
   HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\YuboCao.TailDrop");
-  if (GetLastError() == ERROR_ALREADY_EXISTS) {
+  bool firstInstance = GetLastError() != ERROR_ALREADY_EXISTS;
+  // --exit stops a running copy; with none running there is nothing to do.
+  if (firstInstance && std::find(args.begin(), args.end(), L"--exit") != args.end()) return 0;
+  if (!firstInstance) {
     HWND other = nullptr;
     for (int i = 0; i < 50 && !other; ++i) {
       other = FindWindowW(td::kHostClass, nullptr);

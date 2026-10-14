@@ -10,7 +10,6 @@ $ErrorActionPreference = 'Continue'
 $dest = Join-Path $env:LOCALAPPDATA 'Programs\TailDrop'
 $data = Join-Path $env:LOCALAPPDATA 'YuboCao\TailDrop'
 $appId = 'YuboCao.TailDrop'
-$clsid = '{9639F786-0C93-4CE7-BB89-6F0E749C036D}'
 
 $p = Get-Process TailDrop -ErrorAction SilentlyContinue
 if ($p) {
@@ -20,9 +19,9 @@ if ($p) {
   Get-Process TailDrop -ErrorAction SilentlyContinue | Stop-Process -Force
 }
 
-Get-AppxPackage -Name $appId | Remove-AppxPackage
-foreach ($type in '*', 'Directory') { Remove-Item -LiteralPath "HKCU:\Software\Classes\$type\shell\$appId" -Recurse -Force -ErrorAction SilentlyContinue }
-Remove-Item "HKCU:\Software\Classes\CLSID\$clsid" -Recurse -Force -ErrorAction SilentlyContinue
+$menu = Join-Path $dest 'menu.ps1'
+if (-not (Test-Path $menu)) { $menu = Join-Path $PSScriptRoot 'menu.ps1' }
+& $menu -Unregister
 Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $appId -ErrorAction SilentlyContinue
 Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$appId" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item 'HKCU:\Software\YuboCao\TailDrop' -Recurse -Force -ErrorAction SilentlyContinue

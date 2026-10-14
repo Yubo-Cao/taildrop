@@ -233,8 +233,9 @@ void SettingsWindow::Paint(Canvas& c, float w, float h) {
   bool win11 = td::RegGetDword(L"Win11Menu", 0) != 0;
   SettingCard(c, r, glyph::kOpenFile, L"Explorer menu",
               win11 ? L"“Send with TailDrop” is in the Windows 11 menu."
-                    : (ClassicMenuRegistered() ? L"In “Show more options”. Run register-win11-menu.ps1 for the new menu."
-                                               : L"Not registered. Run install.ps1 again."),
+                    : (ClassicMenuRegistered()
+                           ? L"Under “Show more options”. Turn on Developer Mode and reinstall for the Windows 11 menu."
+                           : L"Not registered. Reinstall TailDrop to add it."),
               0);
   y += cardH + 20;
 
