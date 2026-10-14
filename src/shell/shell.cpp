@@ -149,14 +149,14 @@ class CommandBase : public IExplorerCommand {
   LONG ref_ = 1;
 };
 
-// One favorite device, or "Other devices..." when stableId is empty.
+// One device from the menu list, or "Other devices..." when `other` is set.
 class DeviceCommand : public CommandBase {
  public:
   DeviceCommand(td::Favorite fav, bool other) : fav_(std::move(fav)), other_(other) {}
 
   IFACEMETHODIMP GetTitle(IShellItemArray*, LPWSTR* name) override {
     if (other_) return SHStrDupW(fav_.name.c_str(), name);
-    std::wstring t = fav_.name + (fav_.online ? L"" : L" (offline)");
+    std::wstring t = fav_.name + (fav_.online ? L"" : td::Tr(L" (offline)", L"（离线）"));
     return SHStrDupW(t.c_str(), name);
   }
   IFACEMETHODIMP GetIcon(IShellItemArray*, LPWSTR* icon) override {
@@ -230,7 +230,9 @@ class CommandEnum : public IEnumExplorerCommand {
 
 class RootCommand : public CommandBase {
  public:
-  IFACEMETHODIMP GetTitle(IShellItemArray*, LPWSTR* name) override { return SHStrDupW(L"Send with TailDrop", name); }
+  IFACEMETHODIMP GetTitle(IShellItemArray*, LPWSTR* name) override {
+    return SHStrDupW(td::Tr(L"Send with TailDrop", L"用 TailDrop 发送"), name);
+  }
   IFACEMETHODIMP GetIcon(IShellItemArray*, LPWSTR* icon) override { return IconString(IDI_SHELL_APP, icon); }
   IFACEMETHODIMP GetState(IShellItemArray* items, BOOL, EXPCMDSTATE* state) override {
     *state = ECS_HIDDEN;
@@ -252,10 +254,15 @@ class RootCommand : public CommandBase {
   }
   IFACEMETHODIMP EnumSubCommands(IEnumExplorerCommand** out) override {
     std::vector<IExplorerCommand*> cmds;
-    std::vector<td::Favorite> favs = td::LoadFavorites();
-    for (auto& f : favs) cmds.push_back(new (std::nothrow) DeviceCommand(f, false));
+    // TailDrop.exe keeps "MenuDevices" up to date: favorites, recently used
+    // devices, then the rest by name. Fall back to favorites if it never ran.
+    bool known = false;
+    std::vector<td::Favorite> devices = td::LoadDeviceList(L"MenuDevices", &known);
+    if (!known) devices = td::LoadFavorites();
+    for (auto& f : devices) cmds.push_back(new (std::nothrow) DeviceCommand(f, false));
     td::Favorite other;
-    other.name = favs.empty() ? L"Choose a device…" : L"Other devices…";
+    other.name = devices.empty() ? td::Tr(L"Choose a device…", L"选择设备…")
+                                 : td::Tr(L"Other devices…", L"其他设备…");
     cmds.push_back(new (std::nothrow) DeviceCommand(other, true));
     cmds.erase(std::remove(cmds.begin(), cmds.end(), nullptr), cmds.end());
     // Let the app refresh favorites' online state for next time.

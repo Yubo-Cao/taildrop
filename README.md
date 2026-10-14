@@ -3,7 +3,7 @@
 <h1 align="center">TailDrop</h1>
 
 <p align="center">An AirDrop-style companion for <a href="https://tailscale.com/kb/1106/taildrop">Tailscale Taildrop</a> on Windows.<br>
-Native Win32, about 2&nbsp;MB of memory when idle.</p>
+A WinUI&nbsp;3 interface over a native listener that idles at about 2&nbsp;MB of memory.</p>
 
 TailDrop sits in the system tray. When a phone, tablet or another computer sends this PC a file over Taildrop, a notification slides up with a preview of the file and asks where to put it. You can save it, open it, or drag the preview straight into any folder or app, because it's a real file. Sending works the same way in reverse: drop files on the tray icon, or right-click them in File Explorer and pick a device.
 
@@ -19,12 +19,16 @@ TailDrop is unofficial and not affiliated with Tailscale Inc. "Tailscale" and "T
     <td><img src="docs/not-connected.png" alt="Window asking to sign in to Tailscale"></td>
   </tr>
   <tr>
-    <td><img src="docs/picker.png" alt="Device picker opened from Other devices in the Explorer menu"></td>
-    <td><img src="docs/settings.png" alt="Settings: download folder, automatic saving, tray drop shelf, Explorer menu status and favorite devices"></td>
+    <td><img src="docs/picker.png" alt="Send with TailDrop window: the files being sent and every device in the tailnet"></td>
+    <td><img src="docs/settings.png" alt="Settings in the Windows 11 Settings layout: the Tailscale account and sections in a sidebar, the Receiving section open"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/devices.png" alt="Settings, Devices: every device with its icon, status and favorite star"></td>
+    <td><img src="docs/device.png" alt="A device's page: name and icon in TailDrop, favorite, and what Tailscale reports about it"></td>
   </tr>
 </table>
 
-<sub>Screenshots use demo device names.</sub>
+<sub>Screenshots use demo device names, in the Chinese UI (TailDrop follows the Windows display language: English or Chinese).</sub>
 
 ## Features
 
@@ -42,9 +46,13 @@ TailDrop is unofficial and not affiliated with Tailscale Inc. "Tailscale" and "T
 - Folders are sent as a `.zip` that is built while it uploads, so there is no temporary copy.
 - Progress, speed, cancel and retry in the send notification.
 
+**Devices**
+- Each device gets an icon from its system and name (phone, tablet, laptop, desktop, server). On its page in Settings you can choose another icon and give it a name of your own.
+- The Explorer submenu lists your favorites first, then the devices you sent to recently, then the rest (online first), up to three; **Other devices…** is always there.
+
 **Everything else**
-- If Tailscale isn't signed in or connected, TailDrop shows a screen asking you to sign in, and the tray icon shows it.
-- Windows 11 look and behavior: Mica and acrylic backdrops, rounded corners, Segoe UI Variable and Fluent icons, light and dark mode, your accent color, per-monitor DPI, and native menus and file dialogs.
+- If Tailscale isn't signed in or connected, TailDrop shows a window asking you to sign in, and the tray icon shows it.
+- The interface is WinUI&nbsp;3, with its own controls and motion: Mica, the Windows 11 Settings layout with a sidebar and the title bar drawn into the window, light and dark mode, your accent color, per-monitor DPI, and the system file and folder pickers.
 
 ## Requirements
 
@@ -67,7 +75,7 @@ Without the setup program, extract the release `.zip` and run:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-From source, with Visual Studio 2022 or later (Desktop C++ workload and a Windows 11 SDK), run the same command in the repository; it builds first. `uninstall.ps1` removes a script install.
+From source (see [Building](#building) for what it needs), run the same command in the repository; it builds first. `uninstall.ps1` removes a script install.
 
 - **Windows 11 menu.** The new context menu only shows commands from apps with package identity, which TailDrop gets from a small sparse package. Windows accepts it only signed, or with **Developer Mode** on (Settings > System > For developers). Without either, the command is under **Show more options**. Install again after turning Developer Mode on.
 - **Smart App Control.** While release binaries are unsigned (see [Code signing policy](#code-signing-policy)), Smart App Control blocks them. Turn it off in Windows Security > App & browser control > Smart App Control, or wait for a signed release.
@@ -77,6 +85,13 @@ Uninstalling keeps files still waiting in the inbox (`uninstall.ps1 -RemoveInbox
 
 ## How it works
 
+TailDrop is two programs:
+
+- `TailDrop.exe` is the part that always runs: tray icon, Tailscale connection, transfers, and the Explorer menu's backend. It is plain Win32 C++ with no UI framework, so it idles at about 2&nbsp;MB.
+- `ui\TailDropUI.exe` draws every window: the tray flyout, notifications, Settings and the dialogs. It is WinUI&nbsp;3 (Windows App SDK, bundled, compiled ahead of time with .NET NativeAOT). TailDrop.exe starts it when something needs to be on screen and warms it up when the pointer reaches the tray icon. The two talk over a named pipe that only the current user can open. The interface exits a minute after its last window closes.
+
+The rest:
+
 - TailDrop talks to the Tailscale service through its LocalAPI named pipe, so it never starts `tailscale.exe`. It subscribes to the service's notification stream for incoming transfers and device changes, so it does no polling.
 - The Tailscale app for Windows saves every received file to Downloads right away. TailDrop matches the finished transfer to that file by name, size and time, moves it into its inbox (`%LOCALAPPDATA%\YuboCao\TailDrop\Inbox`, an instant rename on the same drive) and shows the notification. If the Tailscale app isn't running, TailDrop downloads waiting files from the service itself.
 - Sending streams each file to the service (`PUT /localapi/v0/file-put/…`). Folders go through a small ZIP writer: stored entries, UTF-8 names, ZIP64 for large files.
@@ -85,13 +100,14 @@ Uninstalling keeps files still waiting in the inbox (`uninstall.ps1 -RemoveInbox
 
 ### Memory
 
-The UI is drawn with Direct2D in software mode, which keeps GPU drivers out of the process. All graphics objects are released and the working set is trimmed when nothing is on screen. TailDrop also uses the segment heap, has no IME (it has no text fields), and links the C runtime statically. There is no framework or runtime. Measured on Windows 11:
+`TailDrop.exe` has no window apart from a hidden message window, and no XAML, Direct2D or IME. It uses the segment heap, links the C runtime statically, and trims its working set once it has started and whenever the interface exits. Measured on Windows 11:
 
-| State | Working set | Private bytes |
-| --- | --- | --- |
-| Started in the background | 11.4 MB | 2.1 MB |
-| After opening and closing the flyout | 2.3 MB | 5.9 MB |
-| Flyout open | 35 MB | 17 MB |
+| State | Process | Working set | Private bytes |
+| --- | --- | --- | --- |
+| In the background | TailDrop.exe | 1.9 MB | 2.0 MB |
+| Flyout open | TailDrop.exe | 3.6 MB | 2.0 MB |
+| | TailDropUI.exe | 118 MB | 94 MB |
+| A minute after the flyout closed | TailDrop.exe | 1.9 MB | 2.0 MB |
 
 ## Building
 
@@ -100,9 +116,9 @@ The UI is drawn with Direct2D in software mode, which keeps GPU drivers out of t
 .\build.ps1 -Config Debug
 ```
 
-The output is `TailDrop.exe`, `TailDropShell.dll` and `TailDrop.msix` (the sparse package). The setup program is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php): `iscc installer\TailDrop.iss` writes `dist\TailDrop-<version>-Setup.exe`. Icons are generated: `python tools/make_icons.py` (needs Pillow) rewrites `assets/` and `package/Assets/`. `tools/shelltest.cpp` exercises the Explorer command the way File Explorer does.
+It needs Visual Studio 2022 or later with the Desktop C++ workload and a Windows 11 SDK, plus the .NET 10 SDK for the interface. The output is `TailDrop.exe`, `TailDropShell.dll`, `TailDrop.msix` (the sparse package) and `ui\` (the WinUI 3 interface, from `src/ui`). The setup program is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php): `iscc installer\TailDrop.iss` writes `dist\TailDrop-<version>-Setup.exe`. Icons are generated: `python tools/make_icons.py` (needs Pillow) rewrites `assets/` and `package/Assets/`. `tools/shelltest.cpp` exercises the Explorer command the way File Explorer does.
 
-Set `TAILDROP_LOG=1` before starting TailDrop to log to `%LOCALAPPDATA%\YuboCao\TailDrop\taildrop.log`.
+Set `TAILDROP_LOG=1` before starting TailDrop to log to `%LOCALAPPDATA%\YuboCao\TailDrop\taildrop.log` (and the interface to `%TEMP%\TailDropUI.log`). `TAILDROP_DEMO=1` shows made-up devices instead of your tailnet's and leaves the inbox and the Explorer menu alone, for screenshots. `TAILDROP_DEMO=offline` previews the signed-out screens.
 
 ## Code signing policy
 

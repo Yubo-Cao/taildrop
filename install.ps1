@@ -23,7 +23,7 @@ $settingsKey = 'HKCU:\Software\YuboCao\TailDrop'
 $bin = Join-Path $root 'build'
 if (Test-Path (Join-Path $root 'TailDrop.exe')) { $bin = $root }
 elseif (-not $NoBuild) { & (Join-Path $root 'build.ps1') | Out-Null }
-foreach ($f in 'TailDrop.exe', 'TailDropShell.dll', 'TailDrop.msix') {
+foreach ($f in 'TailDrop.exe', 'TailDropShell.dll', 'TailDrop.msix', 'ui\TailDropUI.exe') {
   if (-not (Test-Path (Join-Path $bin $f))) { throw "Missing $f. Run .\build.ps1 first." }
 }
 
@@ -40,6 +40,8 @@ if ($running) {
   $running | Wait-Process -Timeout 5 -ErrorAction SilentlyContinue
   Get-Process TailDrop -ErrorAction SilentlyContinue | Stop-Process -Force
 }
+# The interface (TailDropUI.exe) exits with it; make sure before its files are replaced.
+Get-Process TailDropUI -ErrorAction SilentlyContinue | Stop-Process -Force
 
 # 2. Copy files. Explorer keeps the shell extension loaded, so an in-use DLL
 #    is renamed out of the way (Windows allows that) and cleaned up next time.
@@ -51,6 +53,9 @@ if (Test-Path $dll) {
   catch { Rename-Item $dll ("TailDropShell.{0}.old" -f (Get-Date -Format 'yyyyMMddHHmmss')) }
 }
 foreach ($f in 'TailDrop.exe', 'TailDropShell.dll', 'TailDrop.msix') { Copy-Item (Join-Path $bin $f) $dest -Force }
+# The WinUI 3 interface, replaced as a whole.
+Remove-Item (Join-Path $dest 'ui') -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item (Join-Path $bin 'ui') (Join-Path $dest 'ui') -Recurse
 Copy-Item (Join-Path $root 'uninstall.ps1'), (Join-Path $root 'menu.ps1') $dest -Force
 Remove-Item (Join-Path $dest 'package') -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $root 'package') (Join-Path $dest 'package') -Recurse
@@ -95,7 +100,7 @@ $props = @{
 }
 foreach ($k in $props.Keys) { New-ItemProperty -Path $un -Name $k -Value $props[$k] -Force | Out-Null }
 foreach ($k in 'NoModify', 'NoRepair') { New-ItemProperty -Path $un -Name $k -Value 1 -PropertyType DWord -Force | Out-Null }
-$size = [int]((Get-ChildItem $dest -File | Measure-Object Length -Sum).Sum / 1KB)
+$size = [int]((Get-ChildItem $dest -File -Recurse | Measure-Object Length -Sum).Sum / 1KB)
 New-ItemProperty -Path $un -Name EstimatedSize -Value $size -PropertyType DWord -Force | Out-Null
 Write-Host 'Installed.'
 

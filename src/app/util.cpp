@@ -1,7 +1,6 @@
 #include "util.h"
 
 #include <knownfolders.h>
-#include <psapi.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
@@ -28,26 +27,6 @@ std::string Narrow(std::wstring_view s) {
   return out;
 }
 
-std::wstring FormatSize(int64_t bytes) {
-  if (bytes < 0) return L"";
-  const wchar_t* units[] = {L"bytes", L"KB", L"MB", L"GB", L"TB"};
-  double v = static_cast<double>(bytes);
-  int u = 0;
-  while (v >= 1000 && u < 4) {
-    v /= 1024;
-    ++u;
-  }
-  wchar_t buf[64];
-  if (u == 0) swprintf_s(buf, L"%lld %s", bytes, bytes == 1 ? L"byte" : L"bytes");
-  else swprintf_s(buf, v < 10 ? L"%.1f %s" : L"%.0f %s", v, units[u]);
-  return buf;
-}
-
-std::wstring FormatRate(double bps) {
-  if (bps <= 0) return L"";
-  return FormatSize(static_cast<int64_t>(bps)) + L"/s";
-}
-
 std::wstring KnownFolder(const GUID& id) {
   PWSTR p = nullptr;
   std::wstring out;
@@ -66,14 +45,6 @@ std::wstring AppDataDir() {
 
 std::wstring InboxDir() {
   std::wstring dir = Join(AppDataDir(), L"Inbox");
-  CreateDirectoryW(dir.c_str(), nullptr);
-  return dir;
-}
-
-std::wstring TempDir() {
-  wchar_t buf[MAX_PATH];
-  GetTempPathW(MAX_PATH, buf);
-  std::wstring dir = Join(buf, L"TailDrop");
   CreateDirectoryW(dir.c_str(), nullptr);
   return dir;
 }
@@ -118,28 +89,6 @@ std::wstring Join(const std::wstring& dir, const std::wstring& name) {
   return dir + L"\\" + name;
 }
 
-std::wstring FolderDisplayName(const std::wstring& dir) {
-  struct Known {
-    const GUID* id;
-  } known[] = {{&FOLDERID_Downloads}, {&FOLDERID_Desktop}, {&FOLDERID_Documents}, {&FOLDERID_Pictures},
-               {&FOLDERID_Videos},    {&FOLDERID_Music}};
-  for (const auto& k : known) {
-    if (_wcsicmp(KnownFolder(*k.id).c_str(), dir.c_str()) == 0) {
-      IShellItem* item = nullptr;
-      std::wstring name;
-      if (SUCCEEDED(SHGetKnownFolderItem(*k.id, KF_FLAG_DEFAULT, nullptr, IID_PPV_ARGS(&item)))) {
-        PWSTR p = nullptr;
-        if (SUCCEEDED(item->GetDisplayName(SIGDN_NORMALDISPLAY, &p))) name = p;
-        CoTaskMemFree(p);
-        item->Release();
-      }
-      if (!name.empty()) return name;
-    }
-  }
-  std::wstring leaf = FileName(dir);
-  return leaf.empty() ? dir : leaf;
-}
-
 bool Exists(const std::wstring& path) { return GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES; }
 
 bool IsDirectory(const std::wstring& path) {
@@ -170,14 +119,6 @@ std::wstring SafeFileName(std::wstring name) {
   while (!name.empty() && (name.back() == L' ' || name.back() == L'.')) name.pop_back();
   if (name.empty()) name = L"file";
   return name;
-}
-
-std::wstring FileTypeName(const std::wstring& name) {
-  SHFILEINFOW info{};
-  if (!SHGetFileInfoW(name.c_str(), FILE_ATTRIBUTE_NORMAL, &info, sizeof(info),
-                      SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES))
-    return L"";
-  return info.szTypeName;
 }
 
 bool IsProcessRunning(const wchar_t* exeName) {
@@ -239,72 +180,6 @@ void RevealInExplorer(const std::wstring& path) {
   }
 }
 
-std::wstring PickFolder(HWND owner, const std::wstring& initial, const wchar_t* title) {
-  IFileOpenDialog* dlg = nullptr;
-  std::wstring out;
-  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) return out;
-  DWORD opts = 0;
-  dlg->GetOptions(&opts);
-  dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
-  dlg->SetTitle(title);
-  IShellItem* init = nullptr;
-  if (!initial.empty() && SUCCEEDED(SHCreateItemFromParsingName(initial.c_str(), nullptr, IID_PPV_ARGS(&init)))) {
-    dlg->SetFolder(init);
-    init->Release();
-  }
-  if (SUCCEEDED(dlg->Show(owner))) {
-    IShellItem* res = nullptr;
-    if (SUCCEEDED(dlg->GetResult(&res))) {
-      PWSTR p = nullptr;
-      if (SUCCEEDED(res->GetDisplayName(SIGDN_FILESYSPATH, &p))) out = p;
-      CoTaskMemFree(p);
-      res->Release();
-    }
-  }
-  dlg->Release();
-  return out;
-}
-
-std::vector<std::wstring> PickFiles(HWND owner, const wchar_t* title) {
-  std::vector<std::wstring> out;
-  IFileOpenDialog* dlg = nullptr;
-  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) return out;
-  DWORD opts = 0;
-  dlg->GetOptions(&opts);
-  dlg->SetOptions(opts | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST);
-  dlg->SetTitle(title);
-  if (SUCCEEDED(dlg->Show(owner))) {
-    IShellItemArray* arr = nullptr;
-    if (SUCCEEDED(dlg->GetResults(&arr))) {
-      DWORD n = 0;
-      arr->GetCount(&n);
-      for (DWORD i = 0; i < n; ++i) {
-        IShellItem* it = nullptr;
-        if (SUCCEEDED(arr->GetItemAt(i, &it))) {
-          PWSTR p = nullptr;
-          if (SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p))) out.emplace_back(p);
-          CoTaskMemFree(p);
-          it->Release();
-        }
-      }
-      arr->Release();
-    }
-  }
-  dlg->Release();
-  return out;
-}
-
-bool IsWindows11() {
-  static int cached = -1;
-  if (cached < 0) {
-    using RtlGetVersionFn = LONG(WINAPI*)(OSVERSIONINFOW*);
-    auto fn = reinterpret_cast<RtlGetVersionFn>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"));
-    OSVERSIONINFOW v{sizeof(v)};
-    cached = fn && fn(&v) == 0 && v.dwBuildNumber >= 22000;
-  }
-  return cached == 1;
-}
-
 void Log(const wchar_t* fmt, ...) {
   wchar_t buf[1024];
   va_list ap;
@@ -328,11 +203,6 @@ void Log(const wchar_t* fmt, ...) {
   DWORD w;
   WriteFile(f, utf8.data(), static_cast<DWORD>(utf8.size()), &w, nullptr);
   CloseHandle(f);
-}
-
-void TrimMemory() {
-  HeapCompact(GetProcessHeap(), 0);
-  EmptyWorkingSet(GetCurrentProcess());
 }
 
 }  // namespace util

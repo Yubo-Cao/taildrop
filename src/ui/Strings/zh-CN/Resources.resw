@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="About_Disclaimer" xml:space="preserve">
+    <value>TailDrop 是一款独立应用，使用 Tailscale 的 Taildrop 功能，并非由 Tailscale Inc. 开发或认可。Tailscale 是 Tailscale Inc. 的商标。</value>
+  </data>
+  <data name="About_GitHub" xml:space="preserve">
+    <value>在 GitHub 上查看</value>
+  </data>
+  <data name="About_IssuesDescription" xml:space="preserve">
+    <value>报告问题或提出功能建议</value>
+  </data>
+  <data name="About_IssuesHeader" xml:space="preserve">
+    <value>反馈</value>
+  </data>
+  <data name="About_IssuesLink" xml:space="preserve">
+    <value>提交问题</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>基于 MIT 许可证开源</value>
+  </data>
+  <data name="About_LicenseHeader" xml:space="preserve">
+    <value>许可证</value>
+  </data>
+  <data name="About_LicenseLink" xml:space="preserve">
+    <value>查看许可证</value>
+  </data>
+  <data name="About_Version" xml:space="preserve">
+    <value>版本 {0} · 用 Taildrop 收发文件</value>
+  </data>
+  <data name="AddFavorite" xml:space="preserve">
+    <value>添加到收藏</value>
+  </data>
+  <data name="Automatic" xml:space="preserve">
+    <value>自动（{0}）</value>
+  </data>
+  <data name="AutoSave_Description" xml:space="preserve">
+    <value>无需确认，直接把新文件保存到上面的文件夹</value>
+  </data>
+  <data name="AutoSave_Header" xml:space="preserve">
+    <value>自动保存收到的文件</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>正在等待 Tailscale…</value>
+  </data>
+  <data name="ChooseDevice" xml:space="preserve">
+    <value>发送到</value>
+  </data>
+  <data name="ChooseFolder" xml:space="preserve">
+    <value>选择文件夹…</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Conn_needsLogin" xml:space="preserve">
+    <value>请登录 Tailscale 以收发文件。</value>
+  </data>
+  <data name="Conn_needsMachineAuth" xml:space="preserve">
+    <value>这台电脑正在等待 tailnet 管理员批准。</value>
+  </data>
+  <data name="Conn_noService" xml:space="preserve">
+    <value>未安装 Tailscale，或其服务没有运行。请安装 Tailscale 并登录。</value>
+  </data>
+  <data name="Conn_otherUser" xml:space="preserve">
+    <value>Tailscale 正被这台电脑上的另一位 Windows 用户使用。</value>
+  </data>
+  <data name="Conn_running" xml:space="preserve">
+    <value>已连接</value>
+  </data>
+  <data name="Conn_short_needsLogin" xml:space="preserve">
+    <value>需要登录 Tailscale</value>
+  </data>
+  <data name="Conn_short_needsMachineAuth" xml:space="preserve">
+    <value>等待批准</value>
+  </data>
+  <data name="Conn_short_noService" xml:space="preserve">
+    <value>未安装 Tailscale</value>
+  </data>
+  <data name="Conn_short_otherUser" xml:space="preserve">
+    <value>另一位用户正在使用</value>
+  </data>
+  <data name="Conn_short_running" xml:space="preserve">
+    <value>已连接</value>
+  </data>
+  <data name="Conn_short_starting" xml:space="preserve">
+    <value>正在启动…</value>
+  </data>
+  <data name="Conn_short_stopped" xml:space="preserve">
+    <value>已断开</value>
+  </data>
+  <data name="Conn_short_unknown" xml:space="preserve">
+    <value>正在检查…</value>
+  </data>
+  <data name="Conn_starting" xml:space="preserve">
+    <value>Tailscale 正在启动…</value>
+  </data>
+  <data name="Conn_stopped" xml:space="preserve">
+    <value>Tailscale 已断开。连接后即可收发文件。</value>
+  </data>
+  <data name="Conn_unknown" xml:space="preserve">
+    <value>正在检查 Tailscale…</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>已连接</value>
+  </data>
+  <data name="ConnectedAs" xml:space="preserve">
+    <value>已作为 {0} 连接到 {1}</value>
+  </data>
+  <data name="ConnectedTo" xml:space="preserve">
+    <value>已连接到 {0}</value>
+  </data>
+  <data name="DefaultSuffix" xml:space="preserve">
+    <value>（默认）</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="DeleteAll" xml:space="preserve">
+    <value>全部删除</value>
+  </data>
+  <data name="Detail_Dns" xml:space="preserve">
+    <value>DNS 名称</value>
+  </data>
+  <data name="Detail_Host" xml:space="preserve">
+    <value>Tailscale 名称</value>
+  </data>
+  <data name="Detail_Ip" xml:space="preserve">
+    <value>Tailscale IP</value>
+  </data>
+  <data name="Detail_Os" xml:space="preserve">
+    <value>操作系统</value>
+  </data>
+  <data name="Device_GoneMessage" xml:space="preserve">
+    <value>它可能已被移除或改名。它的设置会保留。</value>
+  </data>
+  <data name="Device_GoneTitle" xml:space="preserve">
+    <value>这台设备已不在你的 tailnet 中</value>
+  </data>
+  <data name="Devices_Hint" xml:space="preserve">
+    <value>设置名称、图标和收藏。收藏的设备会排在托盘面板和资源管理器菜单的最前面。</value>
+  </data>
+  <data name="DeviceSettings" xml:space="preserve">
+    <value>设备设置</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="DropChoose" xml:space="preserve">
+    <value>选择设备</value>
+  </data>
+  <data name="DropOffline" xml:space="preserve">
+    <value>{0} 离线</value>
+  </data>
+  <data name="DropOnDevice" xml:space="preserve">
+    <value>拖放到设备上</value>
+  </data>
+  <data name="DropSendTo" xml:space="preserve">
+    <value>发送到 {0}</value>
+  </data>
+  <data name="Err_folderUnreadable" xml:space="preserve">
+    <value>无法读取文件夹 {1}。</value>
+  </data>
+  <data name="Err_noTailscale" xml:space="preserve">
+    <value>Tailscale 未连接。</value>
+  </data>
+  <data name="Err_nothing" xml:space="preserve">
+    <value>没有可发送的内容。</value>
+  </data>
+  <data name="Err_notTarget" xml:space="preserve">
+    <value>{0} 无法通过 Taildrop 接收文件。</value>
+  </data>
+  <data name="Err_readFailed" xml:space="preserve">
+    <value>无法读取 {1}。</value>
+  </data>
+  <data name="Err_refused" xml:space="preserve">
+    <value>{0} 没有接收文件。</value>
+  </data>
+  <data name="Err_server" xml:space="preserve">
+    <value>{0} 返回了错误：{1}</value>
+  </data>
+  <data name="Err_unreachable" xml:space="preserve">
+    <value>无法连接到 {0}。请确认它在线并已连接 Tailscale。</value>
+  </data>
+  <data name="Error_SignInTitle" xml:space="preserve">
+    <value>尚未登录 Tailscale</value>
+  </data>
+  <data name="Error_Title" xml:space="preserve">
+    <value>TailDrop 无法连接到 Tailscale</value>
+  </data>
+  <data name="Explorer_BadgeClassic" xml:space="preserve">
+    <value>经典菜单</value>
+  </data>
+  <data name="Explorer_BadgeWin11" xml:space="preserve">
+    <value>Windows 11 菜单</value>
+  </data>
+  <data name="Explorer_Classic" xml:space="preserve">
+    <value>位于“显示更多选项”中。开启开发者模式并重新安装 TailDrop，即可显示在 Windows 11 菜单中。</value>
+  </data>
+  <data name="Explorer_Header" xml:space="preserve">
+    <value>资源管理器中的“用 TailDrop 发送”</value>
+  </data>
+  <data name="Explorer_Win11" xml:space="preserve">
+    <value>右键单击文件即可发送。收藏的设备排在最前，然后是最近使用的设备。</value>
+  </data>
+  <data name="Favorite_Description" xml:space="preserve">
+    <value>收藏的设备会排在托盘面板和资源管理器菜单的最前面</value>
+  </data>
+  <data name="Favorite_Header" xml:space="preserve">
+    <value>收藏</value>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>{0} 文件</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>文件夹</value>
+  </data>
+  <data name="Folder_Change" xml:space="preserve">
+    <value>更改文件夹</value>
+  </data>
+  <data name="Folder_Header" xml:space="preserve">
+    <value>收到的文件保存到</value>
+  </data>
+  <data name="Folder_Reset" xml:space="preserve">
+    <value>使用“下载”</value>
+  </data>
+  <data name="GetTailscale" xml:space="preserve">
+    <value>获取 Tailscale</value>
+  </data>
+  <data name="Icon" xml:space="preserve">
+    <value>图标</value>
+  </data>
+  <data name="Icon_Description" xml:space="preserve">
+    <value>这台设备在 TailDrop 中的显示方式</value>
+  </data>
+  <data name="Icon_Header" xml:space="preserve">
+    <value>图标</value>
+  </data>
+  <data name="Inbox_Description" xml:space="preserve">
+    <value>尚未保存的文件存放在 {0}</value>
+  </data>
+  <data name="Inbox_Header" xml:space="preserve">
+    <value>等待保存的文件</value>
+  </data>
+  <data name="Inbox_Open" xml:space="preserve">
+    <value>打开文件夹</value>
+  </data>
+  <data name="InboxButton" xml:space="preserve">
+    <value>收到的文件</value>
+  </data>
+  <data name="Item_landing" xml:space="preserve">
+    <value>正在完成…</value>
+  </data>
+  <data name="Item_pending" xml:space="preserve">
+    <value>{0} · 尚未保存</value>
+  </data>
+  <data name="Item_receiving" xml:space="preserve">
+    <value>正在接收 · {0}%</value>
+  </data>
+  <data name="Item_saved" xml:space="preserve">
+    <value>已保存到 {0}</value>
+  </data>
+  <data name="Item_saving" xml:space="preserve">
+    <value>正在保存…</value>
+  </data>
+  <data name="Job_done" xml:space="preserve">
+    <value>已发送到 {0}</value>
+  </data>
+  <data name="Job_failed" xml:space="preserve">
+    <value>无法发送到 {0}</value>
+  </data>
+  <data name="Job_preparing" xml:space="preserve">
+    <value>正在准备发送到 {0}…</value>
+  </data>
+  <data name="Job_sending" xml:space="preserve">
+    <value>正在发送到 {0}</value>
+  </data>
+  <data name="Kind_auto" xml:space="preserve">
+    <value>自动</value>
+  </data>
+  <data name="Kind_laptop" xml:space="preserve">
+    <value>笔记本电脑</value>
+  </data>
+  <data name="Kind_other" xml:space="preserve">
+    <value>其他</value>
+  </data>
+  <data name="Kind_pc" xml:space="preserve">
+    <value>台式机</value>
+  </data>
+  <data name="Kind_phone" xml:space="preserve">
+    <value>手机</value>
+  </data>
+  <data name="Kind_server" xml:space="preserve">
+    <value>服务器</value>
+  </data>
+  <data name="Kind_tablet" xml:space="preserve">
+    <value>平板电脑</value>
+  </data>
+  <data name="More" xml:space="preserve">
+    <value>更多</value>
+  </data>
+  <data name="MoreOptions" xml:space="preserve">
+    <value>更多选项</value>
+  </data>
+  <data name="Name_Description" xml:space="preserve">
+    <value>在 TailDrop 中代替 {0} 显示。留空则使用 Tailscale 名称。</value>
+  </data>
+  <data name="Name_Header" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="Name_Tooltip" xml:space="preserve">
+    <value>按 Enter 保存</value>
+  </data>
+  <data name="NFiles" xml:space="preserve">
+    <value>{0} 个文件</value>
+  </data>
+  <data name="NItems" xml:space="preserve">
+    <value>{0} 项</value>
+  </data>
+  <data name="NoDevices" xml:space="preserve">
+    <value>你的 tailnet 中还没有其他设备。在手机或其他电脑上安装 Tailscale，并用同一账户登录。</value>
+  </data>
+  <data name="NoItems" xml:space="preserve">
+    <value>通过 Taildrop 发送到这台电脑的文件会显示在这里。</value>
+  </data>
+  <data name="NotConnectedTitle" xml:space="preserve">
+    <value>未连接</value>
+  </data>
+  <data name="Note_incomplete" xml:space="preserve">
+    <value>传输未完成</value>
+  </data>
+  <data name="Note_moveFailed" xml:space="preserve">
+    <value>无法保存文件</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>关</value>
+  </data>
+  <data name="Offline" xml:space="preserve">
+    <value>离线</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>开</value>
+  </data>
+  <data name="Online" xml:space="preserve">
+    <value>在线</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>打开</value>
+  </data>
+  <data name="OpenInboxTooltip" xml:space="preserve">
+    <value>打开收到的文件</value>
+  </data>
+  <data name="OpenTailscale" xml:space="preserve">
+    <value>打开 Tailscale</value>
+  </data>
+  <data name="Picker_AddFiles" xml:space="preserve">
+    <value>添加文件…</value>
+  </data>
+  <data name="Picker_Title" xml:space="preserve">
+    <value>用 TailDrop 发送</value>
+  </data>
+  <data name="Received" xml:space="preserve">
+    <value>已接收</value>
+  </data>
+  <data name="Receiving" xml:space="preserve">
+    <value>正在接收</value>
+  </data>
+  <data name="RemoveFavorite" xml:space="preserve">
+    <value>从收藏中移除</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>从列表中移除</value>
+  </data>
+  <data name="Retry" xml:space="preserve">
+    <value>重试</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="SaveAll" xml:space="preserve">
+    <value>全部保存</value>
+  </data>
+  <data name="SaveAllTo" xml:space="preserve">
+    <value>全部保存到…</value>
+  </data>
+  <data name="SavesTo" xml:space="preserve">
+    <value>保存到 {0}</value>
+  </data>
+  <data name="SaveTo" xml:space="preserve">
+    <value>保存到…</value>
+  </data>
+  <data name="SaveToFolder" xml:space="preserve">
+    <value>保存到 {0}</value>
+  </data>
+  <data name="SaveToLead" xml:space="preserve">
+    <value>保存到</value>
+  </data>
+  <data name="Section_About" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="Section_Details" xml:space="preserve">
+    <value>详细信息</value>
+  </data>
+  <data name="Section_Devices" xml:space="preserve">
+    <value>设备</value>
+  </data>
+  <data name="Section_General" xml:space="preserve">
+    <value>常规</value>
+  </data>
+  <data name="Section_Personalize" xml:space="preserve">
+    <value>在 TailDrop 中</value>
+  </data>
+  <data name="Section_Receiving" xml:space="preserve">
+    <value>接收</value>
+  </data>
+  <data name="Section_Sending" xml:space="preserve">
+    <value>发送</value>
+  </data>
+  <data name="SendFiles" xml:space="preserve">
+    <value>发送文件…</value>
+  </data>
+  <data name="SendTo" xml:space="preserve">
+    <value>发送到</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="ShowFiles" xml:space="preserve">
+    <value>显示文件</value>
+  </data>
+  <data name="ShowInFolder" xml:space="preserve">
+    <value>在文件夹中显示</value>
+  </data>
+  <data name="ShowInReceived" xml:space="preserve">
+    <value>在收到的文件中显示</value>
+  </data>
+  <data name="SizeBytes" xml:space="preserve">
+    <value>{0} 字节</value>
+  </data>
+  <data name="Startup_Description" xml:space="preserve">
+    <value>让 TailDrop 在后台运行，以便随时接收文件</value>
+  </data>
+  <data name="Startup_Header" xml:space="preserve">
+    <value>开机时启动</value>
+  </data>
+  <data name="TileOffline.Text" xml:space="preserve">
+    <value>离线</value>
+  </data>
+  <data name="ToastReceiving" xml:space="preserve">
+    <value>{0}% · {1} / {2}</value>
+  </data>
+  <data name="TrayDrop_Description" xml:space="preserve">
+    <value>将文件拖到任务栏中的 TailDrop 图标上即可发送</value>
+  </data>
+  <data name="TrayDrop_Header" xml:space="preserve">
+    <value>拖动文件到托盘图标</value>
+  </data>
+  <data name="TryAgain" xml:space="preserve">
+    <value>重试</value>
+  </data>
+  <data name="WindowTitle" xml:space="preserve">
+    <value>TailDrop 设置</value>
+  </data>
+</root>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="TailDrop.UI.Views.PickerWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TailDrop.UI.Views"
+    Title="TailDrop">
+
+    <Grid x:Name="Root" Width="420" VerticalAlignment="Top" KeyDown="OnKeyDown">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar">
+            <TitleBar.IconSource>
+                <ImageIconSource ImageSource="ms-appx:///Assets/app.png" />
+            </TitleBar.IconSource>
+        </TitleBar>
+
+        <!-- What is being sent -->
+        <Grid Grid.Row="1" Padding="24,6,24,0" ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid Width="52" Height="52">
+                <Border x:Name="BackCard" Width="44" Height="44" CornerRadius="6" Margin="8,0,0,8" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" Visibility="Collapsed" />
+                <Border Width="44" Height="44" CornerRadius="6" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <Grid>
+                        <FontIcon x:Name="FileGlyph" Glyph="&#xE8A5;" FontSize="20" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Image x:Name="FileThumb" />
+                    </Grid>
+                </Border>
+            </Grid>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                <TextBlock x:Name="Heading" Style="{StaticResource SubtitleTextBlockStyle}" FontSize="18" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="Subtitle" Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Where to -->
+        <StackPanel Grid.Row="2" Padding="24,20,24,0">
+            <TextBlock x:Name="ChooseLabel" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,0,0,10" />
+            <ScrollViewer x:Name="TileScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" MaxHeight="340">
+                <ItemsRepeater x:Name="Tiles">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout MinItemWidth="112" MinItemHeight="88" MinRowSpacing="8" MinColumnSpacing="8"
+                                           MaximumRowsOrColumns="3" ItemsStretch="Fill" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="local:DeviceVm">
+                            <Button Tag="{x:Bind Self}" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                    IsEnabled="{x:Bind Online, Mode=OneWay}" Click="OnTileClick"
+                                    AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                                <Grid>
+                                    <StackPanel VerticalAlignment="Center" Spacing="4" Opacity="{x:Bind ContentOpacity, Mode=OneWay}">
+                                        <FontIcon Glyph="{x:Bind Glyph, Mode=OneWay}" FontSize="24" />
+                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   Style="{StaticResource CaptionTextBlockStyle}" FontSize="12" Margin="6,2,6,0" />
+                                        <TextBlock x:Uid="TileOffline" Text="Offline" HorizontalAlignment="Center" FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <FontIcon Glyph="&#xE735;" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,7,0"
+                                              Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+            <TextBlock x:Name="NoDevices" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="Collapsed" Margin="2,0,2,4" />
+        </StackPanel>
+
+        <!-- Dialog footer, as in ContentDialog -->
+        <Grid Grid.Row="3" Margin="0,24,0,0" Padding="24" Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="AddFilesButton" HorizontalAlignment="Stretch" Click="OnAddFiles" />
+            <Button x:Name="CancelButton" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnCancel" />
+        </Grid>
+    </Grid>
+</Window>

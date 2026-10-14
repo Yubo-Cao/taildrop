@@ -53,6 +53,8 @@ Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
 Source: "{#SourceDir}\TailDrop.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\TailDropShell.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\TailDrop.msix"; DestDir: "{app}"; Flags: ignoreversion
+; The WinUI 3 interface (started on demand by TailDrop.exe), Windows App SDK included.
+Source: "{#SourceDir}\ui\*"; DestDir: "{app}\ui"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\package\*"; DestDir: "{app}\package"; Flags: ignoreversion recursesubdirs
 Source: "..\menu.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
@@ -84,6 +86,8 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 [InstallDelete]
 ; Left by an earlier install made with install.ps1.
 Type: files; Name: "{app}\uninstall.ps1"
+; The interface is replaced as a whole, so no file of an older version lingers.
+Type: filesandordirs; Name: "{app}\ui"
 
 [UninstallDelete]
 ; Windows adds package metadata there when it registers the package in place.
@@ -103,6 +107,8 @@ begin
     Exec(Exe, '--exit', '', SW_HIDE, ewWaitUntilTerminated, Code);
     Sleep(800);
   end;
+  // The interface exits with TailDrop.exe; make sure before its files are replaced.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM TailDropUI.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

@@ -38,6 +38,7 @@ struct Favorite {
   std::wstring name;
   std::wstring kind;  // pc, laptop, phone, tablet, server, other
   bool online = true;
+  bool operator==(const Favorite&) const = default;
 };
 
 inline std::wstring RegGetString(const wchar_t* name, const wchar_t* fallback = L"") {
@@ -70,20 +71,35 @@ inline void RegSetString(const wchar_t* name, const std::wstring& value) {
 
 inline void RegSetDword(const wchar_t* name, DWORD value) { RegSetRaw(name, REG_DWORD, &value, sizeof(value)); }
 
-// Favorites are stored as REG_MULTI_SZ entries "stableId\tname\tkind\tonline".
-inline std::vector<Favorite> LoadFavorites() {
-  std::vector<Favorite> out;
+inline std::vector<std::wstring> RegGetMultiString(const wchar_t* name, bool* exists = nullptr) {
+  std::vector<std::wstring> out;
   DWORD size = 0;
-  if (RegGetValueW(HKEY_CURRENT_USER, kRegKey, L"Favorites", RRF_RT_REG_MULTI_SZ, nullptr, nullptr, &size) !=
-          ERROR_SUCCESS ||
-      size == 0)
-    return out;
+  LSTATUS st = RegGetValueW(HKEY_CURRENT_USER, kRegKey, name, RRF_RT_REG_MULTI_SZ, nullptr, nullptr, &size);
+  if (exists) *exists = st == ERROR_SUCCESS;
+  if (st != ERROR_SUCCESS || size == 0) return out;
   std::wstring buf(size / sizeof(wchar_t) + 1, L'\0');
-  if (RegGetValueW(HKEY_CURRENT_USER, kRegKey, L"Favorites", RRF_RT_REG_MULTI_SZ, nullptr, buf.data(), &size) !=
-      ERROR_SUCCESS)
+  if (RegGetValueW(HKEY_CURRENT_USER, kRegKey, name, RRF_RT_REG_MULTI_SZ, nullptr, buf.data(), &size) != ERROR_SUCCESS)
     return out;
-  for (const wchar_t* p = buf.c_str(); *p && out.size() < kMaxFavorites; p += wcslen(p) + 1) {
-    std::wstring line = p;
+  for (const wchar_t* p = buf.c_str(); *p; p += wcslen(p) + 1) out.emplace_back(p);
+  return out;
+}
+
+inline void RegSetMultiString(const wchar_t* name, const std::vector<std::wstring>& values) {
+  std::wstring blob;
+  for (const auto& v : values) {
+    blob += v;
+    blob.push_back(L'\0');
+  }
+  blob.push_back(L'\0');
+  RegSetRaw(name, REG_MULTI_SZ, blob.data(), static_cast<DWORD>(blob.size() * sizeof(wchar_t)));
+}
+
+// Device lists ("Favorites", and "MenuDevices": what the Explorer submenu
+// shows) are REG_MULTI_SZ entries "stableId\tname\tkind\tonline".
+inline std::vector<Favorite> LoadDeviceList(const wchar_t* value, bool* exists = nullptr) {
+  std::vector<Favorite> out;
+  for (const std::wstring& line : RegGetMultiString(value, exists)) {
+    if (out.size() >= kMaxFavorites) break;
     std::vector<std::wstring> f;
     size_t start = 0;
     for (;;) {
@@ -103,16 +119,27 @@ inline std::vector<Favorite> LoadFavorites() {
   return out;
 }
 
-inline void SaveFavorites(const std::vector<Favorite>& favs) {
-  std::wstring blob;
-  for (size_t i = 0; i < favs.size() && i < kMaxFavorites; ++i) {
-    const Favorite& f = favs[i];
-    blob += f.stableId + L"\t" + f.name + L"\t" + f.kind + L"\t" + (f.online ? L"1" : L"0");
-    blob.push_back(L'\0');
+inline void SaveDeviceList(const wchar_t* value, const std::vector<Favorite>& list) {
+  std::vector<std::wstring> lines;
+  for (size_t i = 0; i < list.size() && i < kMaxFavorites; ++i) {
+    const Favorite& f = list[i];
+    lines.push_back(f.stableId + L"\t" + f.name + L"\t" + f.kind + L"\t" + (f.online ? L"1" : L"0"));
   }
-  blob.push_back(L'\0');
-  RegSetRaw(L"Favorites", REG_MULTI_SZ, blob.data(), static_cast<DWORD>(blob.size() * sizeof(wchar_t)));
+  RegSetMultiString(value, lines);
 }
+
+inline std::vector<Favorite> LoadFavorites() { return LoadDeviceList(L"Favorites"); }
+inline void SaveFavorites(const std::vector<Favorite>& favs) { SaveDeviceList(L"Favorites", favs); }
+
+inline bool IsChineseUi() {
+  static int zh = -1;
+  if (zh < 0) zh = PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE;
+  return zh == 1;
+}
+
+// Picks the English or Chinese string to match the Windows display language.
+inline const wchar_t* Tr(const wchar_t* en, const wchar_t* zh) { return IsChineseUi() ? zh : en; }
+
 
 // Joins strings into a WM_COPYDATA payload (see kCopySend).
 inline std::wstring PackStrings(const std::vector<std::wstring>& parts) {

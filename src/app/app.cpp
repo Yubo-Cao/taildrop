@@ -13,22 +13,10 @@
 #include "localapi.h"
 #include "resource.h"
 #include "util.h"
-#include "views.h"
 #include "zip.h"
 
 using util::Narrow;
 using util::Widen;
-
-wchar_t KindGlyph(DeviceKind k) {
-  switch (k) {
-    case DeviceKind::PC: return ui::glyph::kPC;
-    case DeviceKind::Laptop: return ui::glyph::kLaptop;
-    case DeviceKind::Phone: return ui::glyph::kPhone;
-    case DeviceKind::Tablet: return ui::glyph::kTablet;
-    case DeviceKind::Server: return ui::glyph::kServer;
-    default: return ui::glyph::kDevices;
-  }
-}
 
 const wchar_t* KindKey(DeviceKind k) {
   switch (k) {
@@ -41,7 +29,17 @@ const wchar_t* KindKey(DeviceKind k) {
   }
 }
 
+std::optional<DeviceKind> KindFromKey(const std::wstring& key) {
+  for (DeviceKind k : kAllKinds)
+    if (key == KindKey(k)) return k;
+  return std::nullopt;
+}
+
 namespace {
+
+constexpr wchar_t kDeviceIconsKey[] = L"Software\\YuboCao\\TailDrop\\DeviceIcons";
+constexpr wchar_t kDeviceNamesKey[] = L"Software\\YuboCao\\TailDrop\\DeviceNames";
+constexpr size_t kMaxRecent = 6;
 
 // watch-ipn-bus mask: initial state, per-peer changes as patches, no netmaps.
 constexpr uint64_t kBusMask = (1 << 1) | (1 << 12) | (1 << 13) | (1 << 15);
@@ -51,16 +49,27 @@ std::string Lower(std::string s) {
   return s;
 }
 
+bool NameHas(const std::string& name, std::initializer_list<const char*> words) {
+  for (const char* w : words)
+    if (name.find(w) != std::string::npos) return true;
+  return false;
+}
+
+// Peers only report their OS and name (no model or form factor), so this is a
+// best guess; anything it gets wrong can be changed per device.
 DeviceKind InferKind(const std::string& os, const std::string& model, const std::string& name) {
   std::string o = Lower(os), m = Lower(model), n = Lower(name);
   if (o == "ios" || o == "ipados") {
-    if (m.rfind("ipad", 0) == 0 || n.find("ipad") != std::string::npos) return DeviceKind::Tablet;
+    if (m.rfind("ipad", 0) == 0 || NameHas(n, {"ipad"})) return DeviceKind::Tablet;
     return DeviceKind::Phone;
   }
-  if (o == "android") return n.find("tab") != std::string::npos ? DeviceKind::Tablet : DeviceKind::Phone;
-  if (o == "macos" || o == "darwin") return DeviceKind::Laptop;
-  if (o == "windows") return n.find("laptop") != std::string::npos ? DeviceKind::Laptop : DeviceKind::PC;
-  if (o == "linux" || o == "freebsd" || o == "openbsd") return DeviceKind::Server;
+  if (o == "android") return NameHas(n, {"tab", "pad"}) ? DeviceKind::Tablet : DeviceKind::Phone;
+  if (o == "macos" || o == "darwin")
+    return NameHas(n, {"mini", "studio", "imac", "macpro", "mac-pro"}) ? DeviceKind::PC : DeviceKind::Laptop;
+  if (NameHas(n, {"server", "srv", "nas", "vps", "derp", "cloud", "cluster", "node", "proxy", "router", "relay"}))
+    return DeviceKind::Server;
+  if (NameHas(n, {"laptop", "notebook", "book", "surface", "thinkpad", "xps"})) return DeviceKind::Laptop;
+  if (o == "windows" || o == "linux" || o == "freebsd" || o == "openbsd") return DeviceKind::PC;
   return DeviceKind::Other;
 }
 
@@ -82,6 +91,40 @@ Conn MapStateName(const std::string& s) {
   if (s == "Stopped") return Conn::Stopped;
   if (s == "InUseOtherUser") return Conn::OtherUser;
   return Conn::Starting;
+}
+
+const char* ConnCode(Conn c) {
+  switch (c) {
+    case Conn::NoService: return "noService";
+    case Conn::OtherUser: return "otherUser";
+    case Conn::NeedsLogin: return "needsLogin";
+    case Conn::NeedsMachineAuth: return "needsMachineAuth";
+    case Conn::Stopped: return "stopped";
+    case Conn::Starting: return "starting";
+    case Conn::Running: return "running";
+    default: return "unknown";
+  }
+}
+
+const char* ItemCode(ItemState s) {
+  switch (s) {
+    case ItemState::Receiving: return "receiving";
+    case ItemState::Landing: return "landing";
+    case ItemState::Pending: return "pending";
+    case ItemState::Saving: return "saving";
+    case ItemState::Saved: return "saved";
+    default: return "failed";
+  }
+}
+
+const char* JobCode(JobState s) {
+  switch (s) {
+    case JobState::Preparing: return "preparing";
+    case JobState::Sending: return "sending";
+    case JobState::Done: return "done";
+    case JobState::Failed: return "failed";
+    default: return "cancelled";
+  }
 }
 
 std::string FirstLabel(const std::string& dns) {
@@ -154,10 +197,13 @@ DeviceSnapshot* FetchDevices() {
       if (!dns.empty() && dns.back() == '.') dns.pop_back();
       std::string name = n["ComputedName"].str();
       if (name.empty()) name = FirstLabel(dns);
-      d.name = Widen(name);
+      d.hostName = d.name = Widen(name);
       d.dns = Widen(dns);
       d.os = Widen(n["Hostinfo"]["OS"].str());
-      d.kind = InferKind(n["Hostinfo"]["OS"].str(), n["Hostinfo"]["DeviceModel"].str(), name);
+      std::string ip = n["Addresses"].at(0).str();
+      if (size_t slash = ip.find('/'); slash != std::string::npos) ip.resize(slash);
+      d.ip = Widen(ip);
+      d.kind = d.autoKind = InferKind(n["Hostinfo"]["OS"].str(), n["Hostinfo"]["DeviceModel"].str(), name);
       d.online = n["Online"].boolean(false);
       snap->devices.push_back(std::move(d));
     }
@@ -221,7 +267,7 @@ DWORD WINAPI HookThread(void*) {
 }
 
 // ---------------------------------------------------------------------------
-// Sending.
+// Sending. Errors are codes (plus a detail) that the UI turns into text.
 
 struct OutFile {
   std::wstring path, name;
@@ -229,23 +275,23 @@ struct OutFile {
   std::unique_ptr<ZipStream> zip;  // folders are streamed as .zip
 };
 
-std::wstring FriendlySendError(std::string body, const std::wstring& device) {
+std::string SendErrorCode(std::string body, std::wstring* detail) {
   while (!body.empty() && (body.back() == '\n' || body.back() == '\r' || body.back() == ' ')) body.pop_back();
   std::string l = Lower(body);
   if (l.find("offline") != std::string::npos || l.find("no route") != std::string::npos ||
       l.find("timeout") != std::string::npos || l.find("unreachable") != std::string::npos ||
       l.find("connection refused") != std::string::npos)
-    return device + L" isn't reachable right now. Make sure Tailscale is open on it.";
+    return "unreachable";
   if (l.find("not a valid") != std::string::npos || l.find("unknown peer") != std::string::npos ||
       l.find("not found") != std::string::npos)
-    return device + L" can't receive Taildrop files.";
-  if (body.size() > 160) body = body.substr(0, 160) + "...";
-  return body.empty() ? L"Sending failed." : Widen(body);
+    return "notTarget";
+  if (body.size() > 200) body = body.substr(0, 200) + "...";
+  *detail = Widen(body);
+  return "server";
 }
 
-void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName, std::vector<std::wstring> paths,
-                HANDLE cancel) {
-  JobProgress pr{JobState::Preparing, 0, 0, 0, 0, L"", L""};
+void SendWorker(HWND host, int id, std::string stableId, std::vector<std::wstring> paths, HANDLE cancel) {
+  JobProgress pr{JobState::Preparing, 0, 0, 0, 0, L"", "", L""};
   ULONGLONG lastPost = 0;
   auto post = [&](bool force) {
     ULONGLONG now = GetTickCount64();
@@ -255,16 +301,20 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
     if (!PostMessageW(host, WM_APP_JOBPROGRESS, id, reinterpret_cast<LPARAM>(p))) delete p;
   };
   auto cancelled = [&] { return WaitForSingleObject(cancel, 0) == WAIT_OBJECT_0; };
+  auto fail = [&](const char* code, const std::wstring& detail) {
+    pr.state = JobState::Failed;
+    pr.error = code;
+    pr.errorDetail = detail;
+  };
 
   std::vector<OutFile> files;
   for (const auto& p : paths) {
     if (util::IsDirectory(p)) {
-      pr.current = L"Collecting " + util::FileName(p);
+      pr.current = util::FileName(p);
       post(true);
       auto zip = std::make_unique<ZipStream>();
       if (!zip->Prepare(p)) {
-        pr.state = JobState::Failed;
-        pr.error = L"Couldn't read the folder " + util::FileName(p) + L".";
+        fail("folderUnreadable", util::FileName(p));
         post(true);
         return;
       }
@@ -279,10 +329,7 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
   for (const auto& f : files) pr.total += f.size;
   pr.fileCount = static_cast<int>(files.size());
   pr.state = JobState::Sending;
-  if (files.empty()) {
-    pr.state = JobState::Failed;
-    pr.error = L"There was nothing to send.";
-  }
+  if (files.empty()) fail("nothing", L"");
 
   std::vector<char> buf(256 * 1024);
   for (size_t i = 0; i < files.size() && pr.state == JobState::Sending; ++i) {
@@ -293,7 +340,7 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
     lapi::Conn c(cancel);
     int status = 0;
     bool ok = c.Open();
-    if (!ok) pr.error = L"Tailscale isn't running on this PC.";
+    if (!ok) fail("noTailscale", L"");
     std::string url = "/localapi/v0/file-put/" + lapi::EscapeSegment(stableId) + "/" +
                       lapi::EscapeSegment(Narrow(f.name));
     if (ok) ok = c.SendHead("PUT", url, f.size, "application/octet-stream");
@@ -304,20 +351,22 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
       return true;
     };
     if (ok && f.zip) {
-      ok = f.zip->Write(sink, &pr.error);
+      std::wstring bad;
+      ok = f.zip->Write(sink, &bad);
+      if (!ok && !bad.empty()) fail("readFailed", bad);
     } else if (ok) {
       HANDLE in = CreateFileW(f.path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                               nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
       if (in == INVALID_HANDLE_VALUE) {
         ok = false;
-        pr.error = L"Couldn't open " + f.name + L".";
+        fail("readFailed", f.name);
       }
       int64_t left = f.size;
       while (ok && left > 0) {
         DWORD n = 0;
         if (!ReadFile(in, buf.data(), static_cast<DWORD>(std::min<int64_t>(left, buf.size())), &n, nullptr) || !n) {
           ok = false;
-          pr.error = L"Couldn't read " + f.name + L".";
+          fail("readFailed", f.name);
           break;
         }
         ok = sink(buf.data(), n);
@@ -335,10 +384,15 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
       break;
     }
     if (!ok || status < 200 || status >= 300) {
-      pr.state = JobState::Failed;
-      if (pr.error.empty())
-        pr.error = status ? FriendlySendError(body, deviceName)
-                          : deviceName + L" didn't accept the file. Is Tailscale open on it?";
+      if (pr.state != JobState::Failed) {
+        if (status) {
+          std::wstring detail;
+          std::string code = SendErrorCode(body, &detail);
+          fail(code.c_str(), detail);
+        } else {
+          fail("refused", L"");
+        }
+      }
       break;
     }
   }
@@ -349,6 +403,43 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
   post(true);
 }
 
+// ---------------------------------------------------------------------------
+// Native menus (tray right-click) follow the system theme through uxtheme's
+// undocumented dark-mode switches.
+
+void InitDarkMenus() {
+  HMODULE ux = LoadLibraryExW(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+  if (!ux) return;
+  using SetPreferredAppModeFn = int(WINAPI*)(int);
+  using FlushMenuThemesFn = void(WINAPI*)();
+  if (auto fn = reinterpret_cast<SetPreferredAppModeFn>(GetProcAddress(ux, MAKEINTRESOURCEA(135)))) fn(1);
+  if (auto fn = reinterpret_cast<FlushMenuThemesFn>(GetProcAddress(ux, MAKEINTRESOURCEA(136)))) fn();
+}
+
+void AllowDarkFor(HWND hwnd) {
+  using AllowDarkModeForWindowFn = bool(WINAPI*)(HWND, bool);
+  HMODULE ux = GetModuleHandleW(L"uxtheme.dll");
+  if (auto fn = ux ? reinterpret_cast<AllowDarkModeForWindowFn>(GetProcAddress(ux, MAKEINTRESOURCEA(133))) : nullptr)
+    fn(hwnd, true);
+}
+
+bool SystemUsesDarkTheme() {
+  DWORD v = 1, size = sizeof(v);
+  RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+               L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &v, &size);
+  return v == 0;
+}
+
+struct Command {
+  ULONG_PTR kind;
+  std::vector<std::wstring> parts;
+};
+
+std::string RectJson(const RECT& r) {
+  return "[" + std::to_string(r.left) + "," + std::to_string(r.top) + "," + std::to_string(r.right) + "," +
+         std::to_string(r.bottom) + "]";
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -356,19 +447,6 @@ void SendWorker(HWND host, int id, std::string stableId, std::wstring deviceName
 App& App::Get() {
   static App app;
   return app;
-}
-
-std::wstring App::ConnMessage() const {
-  switch (conn_) {
-    case Conn::NeedsLogin: return L"Sign in to Tailscale to send and receive files with your devices.";
-    case Conn::NeedsMachineAuth: return L"This PC is waiting for approval from your tailnet admin.";
-    case Conn::Stopped: return L"Tailscale is disconnected. Connect to your tailnet to send and receive files.";
-    case Conn::Starting: return L"Tailscale is still connecting.";
-    case Conn::OtherUser: return L"Tailscale on this PC is in use by another Windows user.";
-    case Conn::NoService:
-    case Conn::Unknown: return L"The Tailscale service isn't running. Open Tailscale and sign in to continue.";
-    default: return L"";
-  }
 }
 
 int App::Run(const std::vector<std::wstring>& args) {
@@ -413,23 +491,28 @@ int App::Run(const std::vector<std::wstring>& args) {
     return 0;
   }
 
-  if (FAILED(OleInitialize(nullptr))) return 1;
-  INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_STANDARD_CLASSES};
-  InitCommonControlsEx(&icc);
-  ui::InitDarkMenus();
+  // COM for the few shell calls (recycle bin, reveal in Explorer).
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+  InitDarkMenus();
   settings_.Load();
   favorites_ = td::LoadFavorites();
+  for (const std::wstring& id : td::RegGetMultiString(L"RecentDevices")) recent_.push_back(Narrow(id));
+  LoadDeviceOverrides();
   if (td::RegGetDword(L"Configured", 0) == 0) {
     // First run: register autostart once; the user can turn it off in Settings.
     settings_.ApplyRunAtLogin();
     td::RegSetDword(L"Configured", 1);
   }
   if (!CreateHost()) return 1;
+  ui_.Start(host_);
   TrayAdd();
   ScanInbox();
   StartBus();
   RefreshDevices();
   if (settings_.trayDrop) StartDragWatch();
+  SetTimer(host_, kTimerJobs, 60000, nullptr);
+  // Startup touches a lot of code once; give those pages back when it settles.
+  SetTimer(host_, kTimerTrim, 15000, nullptr);
   HandleArgs(args);
 
   MSG msg;
@@ -438,12 +521,13 @@ int App::Run(const std::vector<std::wstring>& args) {
     DispatchMessageW(&msg);
   }
   StopDragWatch();
+  ui_.Stop();
   if (stop_) SetEvent(stop_);
   NOTIFYICONDATAW nid{sizeof(nid)};
   nid.hWnd = host_;
   nid.uID = 1;
   Shell_NotifyIconW(NIM_DELETE, &nid);
-  OleUninitialize();
+  CoUninitialize();
   if (mutex) CloseHandle(mutex);
   return 0;
 }
@@ -457,15 +541,18 @@ void App::HandleArgs(const std::vector<std::wstring>& args) {
       return;
     }
     if (args[i] == L"--pick") {
-      ShowPicker(std::vector<std::wstring>(args.begin() + i + 1, args.end()));
+      Json j;
+      j.begin().str("t", "show").str("what", "picker").beginArray("paths");
+      for (size_t k = i + 1; k < args.size(); ++k) j.strItem(args[k]);
+      Show(j.endArray().end().take());
       return;
     }
     if (args[i] == L"--settings") {
-      ShowSettings();
+      ShowWhat("settings");
       return;
     }
   }
-  if (!background) SetTimer(host_, kTimerStartup + 100, 600, nullptr);  // show the flyout once state is known
+  if (!background) ShowFlyout(false);
 }
 
 bool App::CreateHost() {
@@ -482,7 +569,7 @@ bool App::CreateHost() {
   taskbarCreated_ = RegisterWindowMessageW(L"TaskbarCreated");
   ChangeWindowMessageFilterEx(host_, WM_COPYDATA, MSGFLT_ALLOW, nullptr);
   ChangeWindowMessageFilterEx(host_, td::kMsgRefreshDevices, MSGFLT_ALLOW, nullptr);
-  ui::AllowDarkFor(host_);
+  AllowDarkFor(host_);
   return true;
 }
 
@@ -491,14 +578,6 @@ LRESULT CALLBACK App::HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   if (!app.host_) app.host_ = hwnd;
   return app.HostMessage(msg, wp, lp);
 }
-
-namespace {
-struct Command {
-  ULONG_PTR kind;
-  std::vector<std::wstring> parts;
-};
-constexpr UINT WM_APP_COMMAND = WM_APP + 30;
-}  // namespace
 
 LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
   if (msg == taskbarCreated_ && taskbarCreated_) {
@@ -511,10 +590,14 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
       switch (LOWORD(lp)) {
         case NIN_SELECT:
         case NIN_KEYSELECT:
-          ToggleFlyout();
+          ShowFlyout(false);
           break;
         case WM_CONTEXTMENU:
           TrayMenu();
+          break;
+        case WM_MOUSEMOVE:
+          // The pointer is on the icon: start the UI now so a click is instant.
+          EnsureUi(true);
           break;
       }
       return 0;
@@ -537,19 +620,6 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
       OnDevices(snap.get());
       return 0;
     }
-    case WM_APP_THUMB: {
-      std::unique_ptr<std::shared_ptr<ui::Image>> img(reinterpret_cast<std::shared_ptr<ui::Image>*>(lp));
-      int id = static_cast<int>(wp);
-      if (Item* it = FindItem(id)) {
-        it->thumb = *img;
-        UpdateBatch(it->batch);
-        if (flyout_) flyout_->Changed();
-      } else if (SendJob* j = FindJob(id)) {
-        j->thumb = *img;
-        if (j->toast) j->toast->Changed();
-      }
-      return 0;
-    }
     case WM_APP_JOBPROGRESS: {
       std::unique_ptr<JobProgress> p(reinterpret_cast<JobProgress*>(lp));
       OnJobProgress(static_cast<int>(wp), p.get());
@@ -565,10 +635,6 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
       OnPulled(f.get());
       return 0;
     }
-    case WM_APP_DELETEWINDOW:
-      delete reinterpret_cast<ui::Window*>(lp);
-      MaybeTrim();
-      return 0;
     case WM_APP_TRAYDRAG:
       if (wp == 1) {
         RECT r = TrayIconRect();
@@ -577,24 +643,26 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
         g_iconRect = r;
         ReleaseSRWLockExclusive(&g_rectLock);
       } else if (wp == 2) {
-        if (!flyout_ || !flyout_->visible()) {
-          ShowFlyout(true);
-          trayDragShown_ = true;
-        }
+        ShowFlyout(true);
+        trayDragShown_ = true;
       } else if (wp == 3 && trayDragShown_) {
         SetTimer(host_, kTimerTrayDragEnd, 500, nullptr);
       }
       return 0;
     case WM_APP_COMMAND: {
       std::unique_ptr<Command> c(reinterpret_cast<Command*>(lp));
-      if (c->kind == td::kCopySend && c->parts.size() >= 2)
+      if (c->kind == td::kCopySend && c->parts.size() >= 2) {
         SendTo(Narrow(c->parts[0]), std::vector<std::wstring>(c->parts.begin() + 1, c->parts.end()));
-      else if (c->kind == td::kCopyPick)
-        ShowPicker(c->parts);
-      else if (c->kind == td::kCopyShow && !c->parts.empty() && c->parts[0] == L"settings")
-        ShowSettings();
-      else if (c->kind == td::kCopyShow)
+      } else if (c->kind == td::kCopyPick) {
+        Json j;
+        j.begin().str("t", "show").str("what", "picker").beginArray("paths");
+        for (const auto& p : c->parts) j.strItem(p);
+        Show(j.endArray().end().take());
+      } else if (c->kind == td::kCopyShow && !c->parts.empty() && c->parts[0] == L"settings") {
+        ShowWhat("settings");
+      } else if (c->kind == td::kCopyShow) {
         ShowFlyout(false);
+      }
       return 0;
     }
     case WM_COPYDATA: {
@@ -609,6 +677,17 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
     case td::kMsgRefreshDevices:
       RefreshDevices(true);
       return 0;
+    case WM_APP_UI_CONNECTED:
+      OnUiConnected();
+      return 0;
+    case WM_APP_UI_COMMAND: {
+      std::unique_ptr<std::string> line(reinterpret_cast<std::string*>(lp));
+      OnUiCommand(*line);
+      return 0;
+    }
+    case WM_APP_UI_DISCONNECTED:
+      OnUiDisconnected();
+      return 0;
     case WM_TIMER:
       switch (wp) {
         case kTimerLanding:
@@ -618,56 +697,60 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
           KillTimer(host_, kTimerDevices);
           RefreshDevices();
           break;
-        case kTimerTrim:
-          KillTimer(host_, kTimerTrim);
-          MaybeTrim();
-          break;
         case kTimerTrayDragEnd:
           KillTimer(host_, kTimerTrayDragEnd);
           trayDragShown_ = false;
-          if (flyout_ && flyout_->visible() && flyout_->dropMode() && GetForegroundWindow() != flyout_->hwnd())
-            HideFlyout();
+          ui_.Send("{\"t\":\"dragEnd\"}");
           break;
-        case kTimerStartup:
-          KillTimer(host_, kTimerStartup);
+        case kTimerStartupCheck:
+          KillTimer(host_, kTimerStartupCheck);
           if (!connected() && !errorShownOnce_) {
             errorShownOnce_ = true;
-            ShowError();
+            ShowWhat("error");
           }
           break;
-        case kTimerStartup + 100:
-          KillTimer(host_, kTimerStartup + 100);
-          ShowFlyout(false);
+        case kTimerVanished:
+          KillTimer(host_, kTimerVanished);
+          CheckVanished();
           break;
-        case kTimerStartup + 200: {
-          KillTimer(host_, kTimerStartup + 200);
-          // Files dragged out of TailDrop and moved elsewhere disappear from the list.
-          std::vector<int> gone;
-          for (auto& it : items_)
-            if ((it->state == ItemState::Pending || it->state == ItemState::Saved) && !util::Exists(it->path))
-              gone.push_back(it->id);
-          for (int id : gone) ForgetItem(id);
+        case kTimerPublish:
+          KillTimer(host_, kTimerPublish);
+          Flush();
+          break;
+        case kTimerTrim:
+          KillTimer(host_, kTimerTrim);
+          SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
+          break;
+        case kTimerJobs: {
+          // Forget finished sends after a couple of minutes.
+          ULONGLONG now = GetTickCount64();
+          size_t before = jobs_.size();
+          jobs_.erase(std::remove_if(jobs_.begin(), jobs_.end(),
+                                     [now](const std::unique_ptr<SendJob>& j) {
+                                       bool finished = j->finished != 0;
+                                       if (finished && (j->dismissed || now - j->finished > 120000)) {
+                                         CloseHandle(j->cancel);
+                                         return true;
+                                       }
+                                       return false;
+                                     }),
+                      jobs_.end());
+          if (jobs_.size() != before) Publish(kPubJobs);
           break;
         }
       }
       return 0;
     case WM_SETTINGCHANGE:
       if (lp && wcscmp(reinterpret_cast<const wchar_t*>(lp), L"ImmersiveColorSet") == 0) {
-        ui::ReloadThemes();
-        ui::InitDarkMenus();
+        InitDarkMenus();
         trayIconKind_ = -1;
         TrayUpdate();
-        for (ui::Window* w : {static_cast<ui::Window*>(flyout_.get()), static_cast<ui::Window*>(picker_.get()),
-                              static_cast<ui::Window*>(settingsWnd_.get()), static_cast<ui::Window*>(errorWnd_.get())})
-          if (w) w->ApplyTheme();
-        for (ToastBase* t : toasts_) t->ApplyTheme();
       }
       return 0;
     case WM_DISPLAYCHANGE:
     case WM_DPICHANGED:
       trayIconKind_ = -1;
       TrayUpdate();
-      LayoutToasts();
       return 0;
     case WM_QUERYENDSESSION:
       return TRUE;
@@ -720,8 +803,7 @@ void App::TrayAdd() {
 void App::TrayUpdate() {
   int pending = PendingCount();
   int kind = !connected() ? 2 : pending > 0 ? 1 : 0;
-  bool dark = ui::SystemTheme().dark;
-  int key = kind + (dark ? 3 : 0);
+  int key = kind + (SystemUsesDarkTheme() ? 3 : 0);
   NOTIFYICONDATAW nid{sizeof(nid)};
   nid.hWnd = host_;
   nid.uID = 1;
@@ -736,10 +818,11 @@ void App::TrayUpdate() {
     trayIconKind_ = key;
   }
   std::wstring tip;
-  if (!connected()) tip = L"TailDrop\nTailscale isn't connected";
-  else if (pending == 1) tip = L"TailDrop\n1 file waiting";
-  else if (pending > 1) tip = L"TailDrop\n" + std::to_wstring(pending) + L" files waiting";
-  else tip = L"TailDrop\n" + (tailnet_.empty() ? std::wstring(L"Ready") : tailnet_);
+  if (!connected()) tip = td::Tr(L"TailDrop\nTailscale isn't connected", L"TailDrop\nTailscale 未连接");
+  else if (pending == 1) tip = td::Tr(L"TailDrop\n1 file waiting", L"TailDrop\n1 个文件等待保存");
+  else if (pending > 1)
+    tip = std::wstring(L"TailDrop\n") + std::to_wstring(pending) + td::Tr(L" files waiting", L" 个文件等待保存");
+  else tip = L"TailDrop\n" + (tailnet_.empty() ? std::wstring(td::Tr(L"Ready", L"就绪")) : tailnet_);
   wcsncpy_s(nid.szTip, tip.c_str(), _TRUNCATE);
   Shell_NotifyIconW(NIM_MODIFY, &nid);
   if (icon) {
@@ -752,22 +835,24 @@ void App::TrayMenu() {
   POINT pt;
   GetCursorPos(&pt);
   enum { kOpen = 1, kSend, kInbox, kSettings, kExit };
-  int cmd = ui::ShowMenu(host_, pt,
-                         {{kOpen, L"Open TailDrop"},
-                          {kSend, L"Send files\u2026", false, !connected()},
-                          {kInbox, L"Open received files"},
-                          {0},
-                          {kSettings, L"Settings"},
-                          {kExit, L"Exit"}});
+  HMENU m = CreatePopupMenu();
+  AppendMenuW(m, MF_STRING, kOpen, td::Tr(L"Open TailDrop", L"打开 TailDrop"));
+  AppendMenuW(m, MF_STRING | (connected() ? 0 : MF_GRAYED), kSend, td::Tr(L"Send files…", L"发送文件…"));
+  AppendMenuW(m, MF_STRING, kInbox, td::Tr(L"Open received files", L"打开收到的文件"));
+  AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(m, MF_STRING, kSettings, td::Tr(L"Settings", L"设置"));
+  AppendMenuW(m, MF_STRING, kExit, td::Tr(L"Exit", L"退出"));
+  SetForegroundWindow(host_);
+  int cmd = TrackPopupMenuEx(m, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY |
+                                    (GetSystemMetrics(SM_MENUDROPALIGNMENT) ? TPM_RIGHTALIGN : TPM_LEFTALIGN),
+                             pt.x, pt.y, host_, nullptr);
+  PostMessageW(host_, WM_NULL, 0, 0);
+  DestroyMenu(m);
   switch (cmd) {
     case kOpen: ShowFlyout(false); break;
-    case kSend: {
-      auto files = util::PickFiles(host_, L"Choose files to send with TailDrop");
-      if (!files.empty()) ShowPicker(files);
-      break;
-    }
+    case kSend: ShowWhat("pickFiles"); break;
     case kInbox: OpenInbox(); break;
-    case kSettings: ShowSettings(); break;
+    case kSettings: ShowWhat("settings"); break;
     case kExit: DestroyWindow(host_); break;
   }
 }
@@ -788,7 +873,7 @@ void App::StopDragWatch() {
 }
 
 // ---------------------------------------------------------------------------
-// Tailscale state
+// Tailscale state and devices
 
 void App::StartBus() {
   stop_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
@@ -811,15 +896,14 @@ void App::SetConn(Conn c) {
   conn_ = c;
   TrayUpdate();
   if (c == Conn::Running) {
-    KillTimer(host_, kTimerStartup);
-    if (errorWnd_ && errorWnd_->visible()) errorWnd_->Close();
+    KillTimer(host_, kTimerStartupCheck);
     RefreshDevices();
   } else {
     if (wasRunning) errorShownOnce_ = false;
     // Give tailscaled a moment: Starting -> Running is normal at boot.
-    SetTimer(host_, kTimerStartup, c == Conn::Starting ? 8000 : 2500, nullptr);
+    SetTimer(host_, kTimerStartupCheck, c == Conn::Starting ? 8000 : 2500, nullptr);
   }
-  Repaint();
+  Publish(kPubState);
 }
 
 void App::RefreshDevices(bool soon) {
@@ -841,15 +925,13 @@ void App::RefreshDevices(bool soon) {
 
 void App::OnDevices(DeviceSnapshot* snap) {
   devicesInFlight_ = false;
-  if (!snap->connected) {
-    SetConn(Conn::NoService);
-  } else if (!snap->backendState.empty()) {
-    SetConn(MapStateName(snap->backendState));
-  }
+  if (!snap->connected) SetConn(Conn::NoService);
+  else if (!snap->backendState.empty()) SetConn(MapStateName(snap->backendState));
   if (!snap->selfName.empty()) selfName_ = snap->selfName;
   if (!snap->tailnet.empty()) tailnet_ = snap->tailnet;
   if (snap->connected) devices_ = std::move(snap->devices);
-  if (GetEnvironmentVariableW(L"TAILDROP_DEMO", nullptr, 0) > 0) {
+  const bool demo = GetEnvironmentVariableW(L"TAILDROP_DEMO", nullptr, 0) > 0;
+  if (demo) {
     selfName_ = L"desktop";
     tailnet_ = L"example.github";
     devices_.clear();
@@ -859,24 +941,77 @@ void App::OnDevices(DeviceSnapshot* snap) {
       const wchar_t* os;
       DeviceKind kind;
       bool online;
-    } demo[] = {{"demo-ipad", L"ipad", L"iOS", DeviceKind::Tablet, true},
+    } fake[] = {{"demo-ipad", L"ipad", L"iOS", DeviceKind::Tablet, true},
                 {"demo-iphone", L"iphone", L"iOS", DeviceKind::Phone, true},
                 {"demo-mac", L"macbook-air", L"macOS", DeviceKind::Laptop, true},
                 {"demo-pc", L"studio-pc", L"windows", DeviceKind::PC, true},
                 {"demo-nas", L"homelab", L"linux", DeviceKind::Server, true},
                 {"demo-pixel", L"pixel", L"android", DeviceKind::Phone, false}};
-    for (const auto& d : demo) {
+    for (const auto& d : fake) {
       Device dev;
       dev.stableId = d.id;
-      dev.name = d.name;
+      dev.name = dev.hostName = d.name;
       dev.dns = std::wstring(d.name) + L".example.ts.net";
       dev.os = d.os;
-      dev.kind = d.kind;
+      dev.ip = L"100.64.0.1";
+      dev.kind = dev.autoKind = d.kind;
       dev.online = d.online;
       devices_.push_back(std::move(dev));
     }
   }
-  // Keep the favorites the Explorer menu shows in sync with names and status.
+  ApplyDeviceOverrides();
+  // Demo devices are for screenshots: keep them out of the saved favorites and the Explorer menu.
+  if (!demo) {
+    SyncFavorites(snap->connected);
+    if (snap->connected) SyncMenuDevices();
+  }
+  TrayUpdate();
+  Publish(kPubState | kPubDevices);
+  if (devicesAgain_) {
+    devicesAgain_ = false;
+    RefreshDevices();
+  }
+}
+
+void App::LoadDeviceOverrides() {
+  kindOverrides_.clear();
+  nicknames_.clear();
+  auto each = [](const wchar_t* path, auto&& fn) {
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, path, 0, KEY_READ, &key) != ERROR_SUCCESS) return;
+    for (DWORD i = 0;; ++i) {
+      wchar_t name[256], value[256];
+      DWORD nameLen = ARRAYSIZE(name), valueSize = sizeof(value) - sizeof(wchar_t), type = 0;
+      if (RegEnumValueW(key, i, name, &nameLen, nullptr, &type, reinterpret_cast<BYTE*>(value), &valueSize) !=
+          ERROR_SUCCESS)
+        break;
+      if (type != REG_SZ) continue;
+      value[valueSize / sizeof(wchar_t)] = 0;
+      fn(Narrow(name), std::wstring(value));
+    }
+    RegCloseKey(key);
+  };
+  each(kDeviceIconsKey, [this](const std::string& id, const std::wstring& v) {
+    if (auto k = KindFromKey(v)) kindOverrides_[id] = *k;
+  });
+  each(kDeviceNamesKey, [this](const std::string& id, const std::wstring& v) {
+    if (!v.empty()) nicknames_[id] = v;
+  });
+}
+
+void App::ApplyDeviceOverrides() {
+  for (Device& d : devices_) {
+    auto k = kindOverrides_.find(d.stableId);
+    d.customKind = k != kindOverrides_.end();
+    d.kind = d.customKind ? k->second : d.autoKind;
+    auto n = nicknames_.find(d.stableId);
+    d.nickname = n != nicknames_.end() ? n->second : L"";
+    d.name = d.nickname.empty() ? d.hostName : d.nickname;
+  }
+}
+
+// Keeps the favorites the Explorer menu shows in sync with names, icons and status.
+void App::SyncFavorites(bool markMissingOffline) {
   bool changed = false;
   for (td::Favorite& f : favorites_) {
     if (const Device* d = FindDevice(Narrow(f.stableId))) {
@@ -886,30 +1021,49 @@ void App::OnDevices(DeviceSnapshot* snap) {
         f.kind = KindKey(d->kind);
         changed = true;
       }
-    } else if (f.online && snap->connected) {
+    } else if (f.online && markMissingOffline) {
       f.online = false;
       changed = true;
     }
   }
   if (changed) td::SaveFavorites(favorites_);
-  TrayUpdate();
-  Repaint();
-  if (devicesAgain_) {
-    devicesAgain_ = false;
-    RefreshDevices();
-  }
 }
 
-std::vector<const Device*> App::SortedDevices() const {
-  std::vector<const Device*> out;
-  for (const Device& d : devices_) out.push_back(&d);
-  std::stable_sort(out.begin(), out.end(), [this](const Device* a, const Device* b) {
-    bool fa = IsFavorite(a->stableId), fb = IsFavorite(b->stableId);
-    if (fa != fb) return fa;
+// The Explorer submenu lists up to three devices: favorites, then the ones
+// files were sent to most recently, then the rest by name (online first).
+void App::SyncMenuDevices() {
+  std::vector<td::Favorite> list;
+  auto add = [&](const std::wstring& id, const std::wstring& name, const std::wstring& kind, bool online) {
+    if (list.size() >= td::kMaxFavorites) return;
+    for (const auto& f : list)
+      if (f.stableId == id) return;
+    list.push_back({id, name, kind, online});
+  };
+  auto addDevice = [&](const Device& d) { add(Widen(d.stableId), d.name, KindKey(d.kind), d.online); };
+  for (const td::Favorite& f : favorites_) {
+    if (const Device* d = FindDevice(Narrow(f.stableId))) addDevice(*d);
+    else add(f.stableId, f.name, f.kind, false);
+  }
+  for (const std::string& id : recent_)
+    if (const Device* d = FindDevice(id)) addDevice(*d);
+  std::vector<const Device*> rest;
+  for (const Device& d : devices_) rest.push_back(&d);
+  std::stable_sort(rest.begin(), rest.end(), [](const Device* a, const Device* b) {
     if (a->online != b->online) return a->online;
     return _wcsicmp(a->name.c_str(), b->name.c_str()) < 0;
   });
-  return out;
+  for (const Device* d : rest) addDevice(*d);
+  if (list != td::LoadDeviceList(L"MenuDevices")) td::SaveDeviceList(L"MenuDevices", list);
+}
+
+void App::RememberRecent(const std::string& id) {
+  recent_.erase(std::remove(recent_.begin(), recent_.end(), id), recent_.end());
+  recent_.insert(recent_.begin(), id);
+  if (recent_.size() > kMaxRecent) recent_.resize(kMaxRecent);
+  std::vector<std::wstring> ids;
+  for (const auto& r : recent_) ids.push_back(Widen(r));
+  td::RegSetMultiString(L"RecentDevices", ids);
+  SyncMenuDevices();
 }
 
 const Device* App::FindDevice(const std::string& id) const {
@@ -925,25 +1079,66 @@ bool App::IsFavorite(const std::string& id) const {
   return false;
 }
 
-void App::ToggleFavorite(const Device& d) {
-  std::wstring id = Widen(d.stableId);
-  auto it = std::find_if(favorites_.begin(), favorites_.end(), [&](const td::Favorite& f) { return f.stableId == id; });
-  if (it != favorites_.end()) {
+void App::SetFavorite(const std::string& id, bool on) {
+  std::wstring w = Widen(id);
+  auto it = std::find_if(favorites_.begin(), favorites_.end(), [&](const td::Favorite& f) { return f.stableId == w; });
+  if (!on && it != favorites_.end()) {
     favorites_.erase(it);
-  } else {
+  } else if (on && it == favorites_.end()) {
+    const Device* d = FindDevice(id);
+    if (!d) return;
     if (favorites_.size() >= td::kMaxFavorites) favorites_.erase(favorites_.begin());
-    favorites_.push_back({id, d.name, KindKey(d.kind), d.online});
+    favorites_.push_back({w, d->name, KindKey(d->kind), d->online});
+  } else {
+    return;
   }
   td::SaveFavorites(favorites_);
-  Repaint();
+  SyncMenuDevices();
+  Publish(kPubDevices);
 }
 
-void App::SettingsChanged() {
-  settings_.Save();
-  settings_.ApplyRunAtLogin();
-  if (settings_.trayDrop) StartDragWatch();
-  else StopDragWatch();
-  Repaint();
+void App::SetDeviceKind(const std::string& id, std::optional<DeviceKind> kind) {
+  std::wstring name = Widen(id);
+  HKEY key;
+  if (RegCreateKeyExW(HKEY_CURRENT_USER, kDeviceIconsKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) ==
+      ERROR_SUCCESS) {
+    if (kind) {
+      std::wstring v = KindKey(*kind);
+      RegSetValueExW(key, name.c_str(), 0, REG_SZ, reinterpret_cast<const BYTE*>(v.c_str()),
+                     static_cast<DWORD>((v.size() + 1) * sizeof(wchar_t)));
+    } else {
+      RegDeleteValueW(key, name.c_str());
+    }
+    RegCloseKey(key);
+  }
+  if (kind) kindOverrides_[id] = *kind;
+  else kindOverrides_.erase(id);
+  ApplyDeviceOverrides();
+  SyncFavorites(false);
+  SyncMenuDevices();
+  Publish(kPubDevices);
+}
+
+void App::SetNickname(const std::string& id, const std::wstring& nickname) {
+  std::wstring name = Widen(id);
+  std::wstring v = nickname;
+  while (!v.empty() && iswspace(v.back())) v.pop_back();
+  while (!v.empty() && iswspace(v.front())) v.erase(v.begin());
+  HKEY key;
+  if (RegCreateKeyExW(HKEY_CURRENT_USER, kDeviceNamesKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) ==
+      ERROR_SUCCESS) {
+    if (!v.empty())
+      RegSetValueExW(key, name.c_str(), 0, REG_SZ, reinterpret_cast<const BYTE*>(v.c_str()),
+                     static_cast<DWORD>((v.size() + 1) * sizeof(wchar_t)));
+    else RegDeleteValueW(key, name.c_str());
+    RegCloseKey(key);
+  }
+  if (!v.empty()) nicknames_[id] = v;
+  else nicknames_.erase(id);
+  ApplyDeviceOverrides();
+  SyncFavorites(false);
+  SyncMenuDevices();
+  Publish(kPubDevices);
 }
 
 // ---------------------------------------------------------------------------
@@ -952,12 +1147,6 @@ void App::SettingsChanged() {
 Item* App::FindItem(int id) {
   for (auto& it : items_)
     if (it->id == id) return it.get();
-  return nullptr;
-}
-
-Batch* App::FindBatch(int id) {
-  for (auto& b : batches_)
-    if (b->id == id) return b.get();
   return nullptr;
 }
 
@@ -983,63 +1172,39 @@ Item* App::NewItem(const std::wstring& name) {
   GetSystemTimeAsFileTime(&it->firstSeenTime);
   Item* raw = it.get();
   items_.push_back(std::move(it));
-  // Keep the history short; pending files are never dropped.
-  int saved = 0;
-  for (auto i = items_.rbegin(); i != items_.rend(); ++i)
-    if ((*i)->state == ItemState::Saved || (*i)->state == ItemState::Failed) ++saved;
-  while (saved > 12) {
+  // Keep the history short; files still waiting are never dropped.
+  int done = 0;
+  for (const auto& x : items_)
+    if (x->state == ItemState::Saved || x->state == ItemState::Failed) ++done;
+  while (done-- > 12) {
     auto i = std::find_if(items_.begin(), items_.end(), [](const std::unique_ptr<Item>& x) {
       return x->state == ItemState::Saved || x->state == ItemState::Failed;
     });
     if (i == items_.end()) break;
-    ForgetItem((*i)->id);
-    --saved;
+    items_.erase(i);
   }
   return raw;
 }
 
-void App::AttachToBatch(Item* it, bool allowJoin) {
+// Files that start arriving within a few seconds of each other share one
+// notification (batch) while that notification is still open.
+void App::AttachToBatch(Item* it) {
   ULONGLONG now = GetTickCount64();
-  Batch* target = nullptr;
-  if (allowJoin) {
-    for (auto& b : batches_) {
-      if (b->toast && now - b->lastStart < 8000) {
-        bool open = std::all_of(b->items.begin(), b->items.end(), [this](int id) {
-          Item* x = FindItem(id);
-          return x && x->state != ItemState::Saved;
-        });
-        if (open) target = b.get();
-      }
-    }
+  if (openBatch_ && now - openBatchAt_ < 8000) {
+    it->batch = openBatch_;
+  } else {
+    it->batch = openBatch_ = nextId_++;
+    Json j;
+    j.begin().str("t", "notify").num("batch", it->batch).raw("tray", RectJson(TrayIconRect())).end();
+    Publish(kPubItems);
+    Show(j.take());
   }
-  if (!target) {
-    auto b = std::make_unique<Batch>();
-    b->id = nextId_++;
-    target = b.get();
-    batches_.push_back(std::move(b));
-  }
-  target->items.push_back(it->id);
-  target->lastStart = now;
-  it->batch = target->id;
-  if (!target->toast) {
-    auto* t = new ReceiveToast(target->id);
-    t->onDestroyed = [this](ui::Window* w) {
-      auto* rt = static_cast<ReceiveToast*>(w);
-      toasts_.erase(std::remove(toasts_.begin(), toasts_.end(), rt), toasts_.end());
-      if (Batch* b = FindBatch(rt->batch())) b->toast = nullptr;
-      PostMessageW(host_, WM_APP_DELETEWINDOW, 0, reinterpret_cast<LPARAM>(w));
-      LayoutToasts();
-    };
-    target->toast = t;
-    toasts_.push_back(t);
-  }
-  LayoutToasts();
+  openBatchAt_ = now;
 }
 
 void App::OnIncoming(std::vector<Partial>* list) {
   ULONGLONG now = GetTickCount64();
   std::set<std::wstring> present;
-  std::set<int> touched;
   for (const Partial& p : *list) {
     std::wstring name = Widen(p.name);
     present.insert(name);
@@ -1054,7 +1219,8 @@ void App::OnIncoming(std::vector<Partial>* list) {
     if (!it) {
       it = NewItem(name);
       it->state = ItemState::Receiving;
-      AttachToBatch(it, true);
+      if (p.declared >= 0) it->size = p.declared;
+      AttachToBatch(it);
     }
     if (it->state != ItemState::Receiving) continue;
     util::Log(L"incoming %s %lld/%lld%s", name.c_str(), p.received, p.declared, p.done ? L" done" : L"");
@@ -1066,26 +1232,22 @@ void App::OnIncoming(std::vector<Partial>* list) {
       it->deadline = now + 30000;
       if (it->size >= 0) it->received = it->size;
     }
-    touched.insert(it->batch);
   }
   for (auto& x : items_) {
     if (x->state == ItemState::Receiving && !present.count(x->name)) {
       // Finished (or aborted) between two notifications.
       x->state = ItemState::Landing;
       x->deadline = now + 30000;
-      touched.insert(x->batch);
     }
   }
-  bool landing = false;
-  for (auto& x : items_)
-    if (x->state == ItemState::Landing) landing = true;
+  bool landing = std::any_of(items_.begin(), items_.end(),
+                             [](const std::unique_ptr<Item>& x) { return x->state == ItemState::Landing; });
   if (landing && !landingTimer_) {
     SetTimer(host_, kTimerLanding, 250, nullptr);
     landingTimer_ = true;
   }
-  for (int b : touched) UpdateBatch(b);
   TrayUpdate();
-  if (flyout_) flyout_->Changed();
+  Publish(kPubItems);
 }
 
 bool App::TryLand(Item* it) {
@@ -1107,10 +1269,9 @@ bool App::TryLand(Item* it) {
     if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
     int64_t size = (static_cast<int64_t>(fd.nFileSizeHigh) << 32) | fd.nFileSizeLow;
     if (it->size >= 0 && size != it->size) continue;
-    ULARGE_INTEGER ct;
+    ULARGE_INTEGER ct, wt;
     ct.LowPart = fd.ftCreationTime.dwLowDateTime;
     ct.HighPart = fd.ftCreationTime.dwHighDateTime;
-    ULARGE_INTEGER wt;
     wt.LowPart = fd.ftLastWriteTime.dwLowDateTime;
     wt.HighPart = fd.ftLastWriteTime.dwHighDateTime;
     ULONGLONG t = std::max(ct.QuadPart, wt.QuadPart);
@@ -1125,11 +1286,11 @@ bool App::TryLand(Item* it) {
   } while (FindNextFileW(h, &fd));
   FindClose(h);
   if (best.empty()) return false;
-  util::Log(L"landed %s at %s", it->landName.c_str(), best.c_str());
   // Still being written by the Tailscale app?
   HANDLE f = CreateFileW(best.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
   if (f == INVALID_HANDLE_VALUE) return false;
   CloseHandle(f);
+  util::Log(L"landed %s at %s", it->landName.c_str(), best.c_str());
   bool keepInPlace = settings_.autoSave && _wcsicmp(settings_.EffectiveDownloadDir().c_str(), downloads.c_str()) == 0;
   it->path = best;
   if (!keepInPlace) {
@@ -1144,23 +1305,19 @@ bool App::TryLand(Item* it) {
 
 void App::PollLanding() {
   ULONGLONG now = GetTickCount64();
-  bool any = false;
+  bool any = false, changed = false;
   for (auto& x : items_) {
     Item* it = x.get();
     if (it->state != ItemState::Landing) continue;
     if (!it->path.empty() || TryLand(it)) {
-      if (it->state == ItemState::Saved) {
-        RequestThumb(it);
-        UpdateBatch(it->batch);
-      } else {
-        ItemReady(it);
-      }
+      if (it->state != ItemState::Saved) ItemReady(it);
+      changed = true;
       continue;
     }
     if (now > it->deadline) {
       it->state = ItemState::Failed;
-      it->note = L"The transfer didn't finish.";
-      UpdateBatch(it->batch);
+      it->note = "incomplete";
+      changed = true;
       continue;
     }
     any = true;
@@ -1169,18 +1326,18 @@ void App::PollLanding() {
     KillTimer(host_, kTimerLanding);
     landingTimer_ = false;
   }
-  TrayUpdate();
-  if (flyout_) flyout_->Changed();
+  if (changed) {
+    TrayUpdate();
+    Publish(kPubItems);
+  }
 }
 
 void App::ItemReady(Item* it) {
   it->state = ItemState::Pending;
   it->size = util::FileSize(it->path);
-  RequestThumb(it);
-  if (settings_.autoSave) SaveItem(it->id);
-  UpdateBatch(it->batch);
+  if (settings_.autoSave) SaveItem(it->id, L"");
   TrayUpdate();
-  if (flyout_) flyout_->Changed();
+  Publish(kPubItems);
 }
 
 void App::OnFilesWaiting() {
@@ -1240,13 +1397,15 @@ void App::OnPulled(PulledFile* f) {
       it = x.get();
   if (!it) {
     it = NewItem(f->name);
-    AttachToBatch(it, true);
+    AttachToBatch(it);
   }
   it->path = f->path;
   ItemReady(it);
 }
 
 void App::ScanInbox() {
+  // Demo mode is for screenshots: leave real files waiting in the inbox out of them.
+  if (GetEnvironmentVariableW(L"TAILDROP_DEMO", nullptr, 0) > 0) return;
   WIN32_FIND_DATAW fd;
   std::wstring inbox = util::InboxDir();
   HANDLE h = FindFirstFileExW(util::Join(inbox, L"*").c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
@@ -1261,47 +1420,14 @@ void App::ScanInbox() {
   FindClose(h);
 }
 
-void App::RequestThumb(Item* it) {
-  if (it->thumbRequested || it->path.empty()) return;
-  it->thumbRequested = true;
-  HWND host = host_;
-  int id = it->id;
-  std::wstring path = it->path;
-  int px = static_cast<int>(320 * ui::DpiScaleForPoint({0, 0}));
-  util::RunAsync([host, id, path, px] {
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    auto img = ui::LoadThumbnail(path, px);
-    CoUninitialize();
-    if (!img) return;
-    auto* p = new std::shared_ptr<ui::Image>(std::move(img));
-    if (!PostMessageW(host, WM_APP_THUMB, id, reinterpret_cast<LPARAM>(p))) delete p;
-  });
-}
-
-void App::UpdateBatch(int batchId) {
-  Batch* b = FindBatch(batchId);
-  if (!b) return;
-  b->items.erase(std::remove_if(b->items.begin(), b->items.end(), [this](int id) { return !FindItem(id); }),
-                 b->items.end());
-  if (b->toast) {
-    if (b->items.empty()) {
-      b->toast->Dismiss();
-    } else {
-      b->toast->Changed();
-      LayoutToasts();
-    }
-  }
-}
-
 void App::SaveItem(int id, const std::wstring& dir) {
   Item* it = FindItem(id);
   if (!it || it->state != ItemState::Pending) return;
   std::wstring target = dir.empty() ? settings_.EffectiveDownloadDir() : dir;
   if (_wcsicmp(util::ParentDir(it->path).c_str(), target.c_str()) == 0) {
     it->state = ItemState::Saved;
-    UpdateBatch(it->batch);
     TrayUpdate();
-    if (flyout_) flyout_->Changed();
+    Publish(kPubItems);
     return;
   }
   it->state = ItemState::Saving;
@@ -1318,14 +1444,13 @@ void App::SaveItem(int id, const std::wstring& dir) {
     }
     if (!PostMessageW(host, WM_APP_SAVED, id, reinterpret_cast<LPARAM>(r))) delete r;
   });
-  UpdateBatch(it->batch);
+  Publish(kPubItems);
 }
 
-void App::SaveBatch(int batchId, const std::wstring& dir) {
-  Batch* b = FindBatch(batchId);
-  if (!b) return;
-  // Copy: SaveItem may change the batch's item list.
-  std::vector<int> ids = b->items;
+void App::SaveBatch(int batch, const std::wstring& dir) {
+  std::vector<int> ids;
+  for (const auto& it : items_)
+    if (it->batch == batch) ids.push_back(it->id);
   for (int id : ids) SaveItem(id, dir);
 }
 
@@ -1334,10 +1459,9 @@ void App::OnSaved(int id, SaveResult* r) {
   if (!it) return;
   it->path = r->path;
   it->state = r->ok ? ItemState::Saved : ItemState::Pending;
-  it->note = r->ok ? L"" : L"Couldn't move the file there.";
-  UpdateBatch(it->batch);
+  it->note = r->ok ? "" : "moveFailed";
   TrayUpdate();
-  if (flyout_) flyout_->Changed();
+  Publish(kPubItems);
 }
 
 void App::OpenItem(int id) {
@@ -1358,27 +1482,18 @@ void App::DiscardItem(int id) {
 void App::ForgetItem(int id) {
   auto i = std::find_if(items_.begin(), items_.end(), [id](const std::unique_ptr<Item>& x) { return x->id == id; });
   if (i == items_.end()) return;
-  int batch = (*i)->batch;
   items_.erase(i);
-  UpdateBatch(batch);
   TrayUpdate();
-  if (flyout_) flyout_->Changed();
+  Publish(kPubItems);
 }
 
-void App::DragItems(HWND from, const std::vector<int>& ids) {
-  std::vector<std::wstring> paths;
-  const ui::Image* preview = nullptr;
-  for (int id : ids) {
-    Item* it = FindItem(id);
-    if (!it || it->path.empty() || !util::Exists(it->path)) continue;
-    if (it->state != ItemState::Pending && it->state != ItemState::Saved) continue;
-    paths.push_back(it->path);
-    if (!preview && it->thumb) preview = it->thumb.get();
-  }
-  if (paths.empty()) return;
-  ui::StartFileDrag(from, paths, preview);
-  // Explorer may finish an "optimized move" asynchronously; check shortly after.
-  SetTimer(host_, kTimerStartup + 200, 900, nullptr);
+// Files dragged out of TailDrop and moved elsewhere disappear from the list.
+void App::CheckVanished() {
+  std::vector<int> gone;
+  for (auto& it : items_)
+    if ((it->state == ItemState::Pending || it->state == ItemState::Saved) && !util::Exists(it->path))
+      gone.push_back(it->id);
+  for (int id : gone) ForgetItem(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -1389,7 +1504,7 @@ void App::SendTo(const std::string& stableId, std::vector<std::wstring> paths) {
               paths.end());
   if (paths.empty()) return;
   if (!connected()) {
-    ShowError();
+    ShowWhat("error");
     return;
   }
   auto job = std::make_unique<SendJob>();
@@ -1407,61 +1522,24 @@ void App::SendTo(const std::string& stableId, std::vector<std::wstring> paths) {
   job->started = GetTickCount64();
   job->fileCount = static_cast<int>(paths.size());
   job->current = util::FileName(paths[0]);
-  SendJob* raw = job.get();
+  int id = job->id;
+  HANDLE cancel = job->cancel;
   jobs_.push_back(std::move(job));
-
-  auto* t = new SendToast(raw->id);
-  t->onDestroyed = [this](ui::Window* w) {
-    auto* st = static_cast<SendToast*>(w);
-    toasts_.erase(std::remove(toasts_.begin(), toasts_.end(), st), toasts_.end());
-    auto j = std::find_if(jobs_.begin(), jobs_.end(), [st](const std::unique_ptr<SendJob>& x) { return x->id == st->job(); });
-    if (j != jobs_.end()) {
-      (*j)->toast = nullptr;
-      if ((*j)->state != JobState::Preparing && (*j)->state != JobState::Sending) {
-        CloseHandle((*j)->cancel);
-        jobs_.erase(j);
-      }
-    }
-    PostMessageW(host_, WM_APP_DELETEWINDOW, 0, reinterpret_cast<LPARAM>(w));
-    LayoutToasts();
-  };
-  raw->toast = t;
-  toasts_.push_back(t);
-  LayoutToasts();
-
   HWND host = host_;
-  int id = raw->id;
-  std::string sid = stableId;
-  std::wstring name = raw->device.name;
-  HANDLE cancel = raw->cancel;
-  util::RunAsync([host, id, sid, name, paths, cancel] { SendWorker(host, id, sid, name, paths, cancel); });
-  std::wstring first = paths[0];
-  int px = static_cast<int>(40 * ui::DpiScaleForPoint({0, 0}));
-  util::RunAsync([host, id, first, px] {
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    auto img = ui::LoadThumbnail(first, px);
-    CoUninitialize();
-    if (!img) return;
-    auto* p = new std::shared_ptr<ui::Image>(std::move(img));
-    if (!PostMessageW(host, WM_APP_THUMB, id, reinterpret_cast<LPARAM>(p))) delete p;
-  });
-}
-
-void App::PickAndSend(const std::string& stableId) {
-  const Device* d = FindDevice(stableId);
-  std::wstring title = L"Choose files to send to " + (d ? d->name : std::wstring(L"device"));
-  auto files = util::PickFiles(host_, title.c_str());
-  if (!files.empty()) SendTo(stableId, files);
+  util::RunAsync([host, id, stableId, paths, cancel] { SendWorker(host, id, stableId, paths, cancel); });
+  Json j;
+  j.begin().str("t", "notify").num("job", id).raw("tray", RectJson(TrayIconRect())).end();
+  Publish(kPubJobs);
+  Show(j.take());
 }
 
 void App::OnJobProgress(int id, JobProgress* p) {
   SendJob* j = FindJob(id);
   if (!j) return;
-  if (p->state != j->state)
-    util::Log(L"send %d -> %s: state %d %s", id, j->device.name.c_str(), static_cast<int>(p->state), p->error.c_str());
   ULONGLONG now = GetTickCount64();
   double dt = (now - j->started) / 1000.0;
   if (p->state == JobState::Sending && dt > 0.5) j->rate = p->sent / dt;
+  bool justDone = p->state == JobState::Done && j->state != JobState::Done;
   j->state = p->state;
   j->total = p->total;
   j->sent = p->sent;
@@ -1469,15 +1547,11 @@ void App::OnJobProgress(int id, JobProgress* p) {
   j->fileCount = p->fileCount ? p->fileCount : j->fileCount;
   if (!p->current.empty()) j->current = p->current;
   j->error = p->error;
-  if (j->toast) {
-    j->toast->Changed();
-    if (j->state == JobState::Done) j->toast->ArmAutoDismiss(4500);
-    if (j->state == JobState::Cancelled) j->toast->Dismiss();
-  } else if (j->state != JobState::Preparing && j->state != JobState::Sending) {
-    CloseHandle(j->cancel);
-    jobs_.erase(std::find_if(jobs_.begin(), jobs_.end(), [id](const std::unique_ptr<SendJob>& x) { return x->id == id; }));
-  }
-  LayoutToasts();
+  j->errorDetail = p->errorDetail;
+  if (j->state != JobState::Preparing && j->state != JobState::Sending && !j->finished) j->finished = now;
+  if (justDone) RememberRecent(j->device.stableId);
+  util::Log(L"send %d: state %d", id, static_cast<int>(p->state));
+  Publish(kPubJobs);
 }
 
 void App::CancelJob(int id) {
@@ -1489,68 +1563,250 @@ void App::RetryJob(int id) {
   if (!j) return;
   std::string sid = j->device.stableId;
   std::vector<std::wstring> paths = j->paths;
-  if (j->toast) j->toast->Dismiss();
+  j->dismissed = true;
   SendTo(sid, paths);
 }
 
-// ---------------------------------------------------------------------------
-// Windows
+void App::DismissJob(int id) {
+  if (SendJob* j = FindJob(id)) j->dismissed = true;
+}
 
-void App::ToggleFlyout() {
-  if (flyout_ && flyout_->visible()) {
-    HideFlyout();
+// ---------------------------------------------------------------------------
+// The WinUI process
+
+void App::EnsureUi(bool warm) {
+  if (uiProcess_ && WaitForSingleObject(uiProcess_, 0) == WAIT_TIMEOUT) return;
+  if (uiProcess_) {
+    CloseHandle(uiProcess_);
+    uiProcess_ = nullptr;
+  }
+  // Don't respawn in a loop if the UI keeps failing to start.
+  ULONGLONG now = GetTickCount64();
+  if (warm && now - uiStarted_ < 10000) return;
+  uiStarted_ = now;
+  std::wstring exe = util::Join(util::Join(util::ExeDir(), L"ui"), L"TailDropUI.exe");
+  std::wstring cmd = L"\"" + exe + L"\" --pipe \"" + ui_.pipeName() + L"\"" + (warm ? L" --warm" : L"");
+  STARTUPINFOW si{sizeof(si)};
+  PROCESS_INFORMATION pi{};
+  if (!CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, FALSE, 0, nullptr, util::ExeDir().c_str(), &si,
+                      &pi)) {
+    util::Log(L"couldn't start %s (%lu)", exe.c_str(), GetLastError());
     return;
   }
-  // The click that deactivated (and hid) the flyout also reaches the icon.
-  if (GetTickCount64() - flyoutHiddenAt_ < 350) return;
-  ShowFlyout(false);
+  AllowSetForegroundWindow(pi.dwProcessId);
+  CloseHandle(pi.hThread);
+  uiProcess_ = pi.hProcess;
+}
+
+void App::Show(const std::string& json) {
+  if (ui_.connected()) {
+    // Keep ordering: state updates first, then what to show.
+    Flush();
+    AllowSetForegroundWindow(ASFW_ANY);
+    ui_.Send(json);
+    return;
+  }
+  pendingShows_.push_back(json);
+  EnsureUi(false);
 }
 
 void App::ShowFlyout(bool dropMode) {
-  if (!flyout_) {
-    flyout_ = std::make_unique<Flyout>();
-  }
   RefreshDevices();
-  for (ToastBase* t : toasts_)
-    if (t->hwnd()) ShowWindow(t->hwnd(), SW_HIDE);
-  flyout_->Show(dropMode);
+  Json j;
+  j.begin().str("t", "show").str("what", "flyout").boolean("dropMode", dropMode).raw("tray", TrayJson()).end();
+  Show(j.take());
 }
 
-void App::HideFlyout() {
-  if (!flyout_ || !flyout_->visible()) return;
-  flyout_->Hide();
-  flyoutHiddenAt_ = GetTickCount64();
-  LayoutToasts();
-  SetTimer(host_, kTimerTrim, 4000, nullptr);
+void App::ShowWhat(const char* what) {
+  if (strcmp(what, "settings") == 0) RefreshDevices();
+  Json j;
+  j.begin().str("t", "show").str("what", what).raw("tray", TrayJson()).end();
+  Show(j.take());
 }
 
-void App::ShowPicker(std::vector<std::wstring> paths) {
-  paths.erase(std::remove_if(paths.begin(), paths.end(), [](const std::wstring& p) { return !util::Exists(p); }),
-              paths.end());
-  if (paths.empty()) return;
-  if (!connected()) {
-    ShowError();
-    return;
+std::string App::TrayJson() const { return RectJson(TrayIconRect()); }
+
+void App::OnUiConnected() {
+  ui_.Send(StateJson());
+  ui_.Send(SettingsJson());
+  ui_.Send(DevicesJson());
+  ui_.Send(ItemsJson());
+  ui_.Send(JobsJson());
+  dirty_ = 0;
+  if (!pendingShows_.empty()) AllowSetForegroundWindow(ASFW_ANY);
+  for (const std::string& s : pendingShows_) ui_.Send(s);
+  pendingShows_.clear();
+}
+
+void App::OnUiDisconnected() {
+  openBatch_ = 0;  // its notification went away with the UI
+  SetTimer(host_, kTimerTrim, 2000, nullptr);
+}
+
+void App::Publish(unsigned what) {
+  if (!ui_.connected()) return;
+  if (!dirty_) SetTimer(host_, kTimerPublish, 40, nullptr);
+  dirty_ |= what;
+}
+
+void App::Flush() {
+  unsigned d = dirty_;
+  dirty_ = 0;
+  KillTimer(host_, kTimerPublish);
+  if (!ui_.connected()) return;
+  if (d & kPubState) ui_.Send(StateJson());
+  if (d & kPubSettings) ui_.Send(SettingsJson());
+  if (d & kPubDevices) ui_.Send(DevicesJson());
+  if (d & kPubItems) ui_.Send(ItemsJson());
+  if (d & kPubJobs) ui_.Send(JobsJson());
+}
+
+std::string App::StateJson() const {
+  Json j;
+  j.begin().str("t", "state").str("conn", ConnCode(conn_)).str("self", selfName_).str("tailnet", tailnet_).end();
+  return j.take();
+}
+
+std::string App::SettingsJson() const {
+  Json j;
+  j.begin()
+      .str("t", "settings")
+      .str("downloadDir", settings_.downloadDir)
+      .str("effectiveDir", settings_.EffectiveDownloadDir())
+      .str("downloads", util::KnownFolder(FOLDERID_Downloads))
+      .boolean("autoSave", settings_.autoSave)
+      .boolean("trayDrop", settings_.trayDrop)
+      .boolean("runAtLogin", settings_.runAtLogin)
+      .boolean("win11Menu", td::RegGetDword(L"Win11Menu", 0) != 0)
+      .str("inbox", util::InboxDir())
+      .str("version", TD_VERSION_STR)
+      .end();
+  return j.take();
+}
+
+std::string App::DevicesJson() const {
+  std::vector<const Device*> sorted;
+  for (const Device& d : devices_) sorted.push_back(&d);
+  std::stable_sort(sorted.begin(), sorted.end(), [this](const Device* a, const Device* b) {
+    bool fa = IsFavorite(a->stableId), fb = IsFavorite(b->stableId);
+    if (fa != fb) return fa;
+    if (a->online != b->online) return a->online;
+    return _wcsicmp(a->name.c_str(), b->name.c_str()) < 0;
+  });
+  Json j;
+  j.begin().str("t", "devices").beginArray("list");
+  for (const Device* d : sorted) {
+    j.item()
+        .str("id", d->stableId)
+        .str("name", d->name)
+        .str("hostName", d->hostName)
+        .str("nickname", d->nickname)
+        .str("dns", d->dns)
+        .str("ip", d->ip)
+        .str("os", d->os)
+        .str("kind", KindKey(d->kind))
+        .str("autoKind", KindKey(d->autoKind))
+        .boolean("custom", d->customKind)
+        .boolean("online", d->online)
+        .boolean("favorite", IsFavorite(d->stableId))
+        .end();
   }
-  HideFlyout();
-  RefreshDevices();
-  if (!picker_) {
-    picker_ = std::make_unique<PickerWindow>();
+  j.endArray().end();
+  return j.take();
+}
+
+std::string App::ItemsJson() const {
+  Json j;
+  j.begin().str("t", "items").beginArray("list");
+  for (const auto& it : items_) {
+    j.item()
+        .num("id", it->id)
+        .num("batch", it->batch)
+        .str("name", it->name)
+        .str("path", it->path)
+        .num("size", it->size)
+        .num("received", it->received)
+        .str("state", ItemCode(it->state))
+        .str("note", it->note)
+        .end();
   }
-  picker_->Open(std::move(paths));
+  j.endArray().end();
+  return j.take();
 }
 
-void App::ShowSettings() {
-  HideFlyout();
-  RefreshDevices();
-  if (!settingsWnd_) settingsWnd_ = std::make_unique<SettingsWindow>();
-  settingsWnd_->Open();
+std::string App::JobsJson() const {
+  Json j;
+  j.begin().str("t", "jobs").beginArray("list");
+  for (const auto& job : jobs_) {
+    j.item()
+        .num("id", job->id)
+        .str("device", job->device.stableId)
+        .str("deviceName", job->device.name)
+        .str("kind", KindKey(job->device.kind))
+        .str("state", JobCode(job->state))
+        .num("total", job->total)
+        .num("sent", job->sent)
+        .num("fileIndex", job->fileIndex)
+        .num("fileCount", job->fileCount)
+        .str("current", job->current)
+        .str("error", job->error)
+        .str("errorDetail", job->errorDetail)
+        .dbl("rate", job->rate)
+        .str("first", job->paths.empty() ? std::wstring() : job->paths[0])
+        .end();
+  }
+  j.endArray().end();
+  return j.take();
 }
 
-void App::ShowError() {
-  HideFlyout();
-  if (!errorWnd_) errorWnd_ = std::make_unique<ErrorWindow>();
-  errorWnd_->Open();
+void App::OnUiCommand(const std::string& line) {
+  json::Value v;
+  if (!json::Parse(line, v)) return;
+  const std::string& c = v["c"].str();
+  int id = static_cast<int>(v["id"].i64());
+  std::wstring dir = Widen(v["dir"].str());
+  std::string device = v["device"].str();
+  if (c == "save") SaveItem(id, dir);
+  else if (c == "saveBatch") SaveBatch(static_cast<int>(v["batch"].i64()), dir);
+  else if (c == "open") OpenItem(id);
+  else if (c == "reveal") RevealItem(id);
+  else if (c == "discard") DiscardItem(id);
+  else if (c == "forget") ForgetItem(id);
+  else if (c == "dragDone") {
+    CheckVanished();
+    // Explorer may finish a move after the drop returns.
+    SetTimer(host_, kTimerVanished, 1500, nullptr);
+  } else if (c == "send") {
+    std::vector<std::wstring> paths;
+    for (const json::Value& p : v["paths"].items) paths.push_back(Widen(p.str()));
+    SendTo(device, paths);
+  } else if (c == "cancel") CancelJob(static_cast<int>(v["job"].i64()));
+  else if (c == "retry") RetryJob(static_cast<int>(v["job"].i64()));
+  else if (c == "dismissJob") DismissJob(static_cast<int>(v["job"].i64()));
+  else if (c == "toastClosed") {
+    if (openBatch_ == static_cast<int>(v["batch"].i64())) openBatch_ = 0;
+  } else if (c == "favorite") SetFavorite(device, v["on"].boolean());
+  else if (c == "kind") {
+    std::wstring k = Widen(v["kind"].str());
+    SetDeviceKind(device, k.empty() ? std::nullopt : KindFromKey(k));
+  } else if (c == "nickname") SetNickname(device, Widen(v["name"].str()));
+  else if (c == "set") ApplySetting(v["key"].str(), v["value"]);
+  else if (c == "refresh") RefreshDevices();
+  else if (c == "openTailscale") OpenTailscale();
+  else if (c == "openInbox") OpenInbox();
+}
+
+void App::ApplySetting(const std::string& key, const json::Value& value) {
+  if (key == "downloadDir") settings_.downloadDir = Widen(value.str());
+  else if (key == "autoSave") settings_.autoSave = value.boolean();
+  else if (key == "trayDrop") settings_.trayDrop = value.boolean();
+  else if (key == "runAtLogin") settings_.runAtLogin = value.boolean();
+  else return;
+  settings_.Save();
+  settings_.ApplyRunAtLogin();
+  if (settings_.trayDrop) StartDragWatch();
+  else StopDragWatch();
+  Publish(kPubSettings);
 }
 
 void App::OpenTailscale() {
@@ -1562,62 +1818,3 @@ void App::OpenTailscale() {
 }
 
 void App::OpenInbox() { ShellExecuteW(nullptr, L"open", util::InboxDir().c_str(), nullptr, nullptr, SW_SHOWNORMAL); }
-
-void App::LayoutToasts() {
-  if (flyout_ && flyout_->visible()) return;
-  RECT ir = TrayIconRect();
-  POINT anchor{(ir.left + ir.right) / 2, (ir.top + ir.bottom) / 2};
-  if (ir.right <= ir.left) {
-    RECT wa;
-    SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
-    anchor = {wa.right - 1, wa.bottom - 1};
-  }
-  RECT work = ui::WorkAreaForPoint(anchor);
-  float s = ui::DpiScaleForPoint(anchor);
-  int margin = static_cast<int>(12 * s), gap = static_cast<int>(8 * s);
-  int w = static_cast<int>(360 * s);
-  bool top = ir.bottom <= work.top + 4 && ir.right > ir.left;  // taskbar at the top
-  int y = top ? work.top + margin : work.bottom - margin;
-  for (auto i = toasts_.rbegin(); i != toasts_.rend(); ++i) {
-    ToastBase* t = *i;
-    int h = static_cast<int>(t->DesiredHeight() * s);
-    if (top) {
-      t->Place(work.right - margin - w, y, w, h, true);
-      y += h + gap;
-    } else {
-      y -= h;
-      if (y < work.top) break;
-      t->Place(work.right - margin - w, y, w, h, true);
-      y -= gap;
-    }
-  }
-}
-
-void App::CloseToast(ToastBase* t) { t->Close(); }
-
-void App::Repaint() {
-  if (flyout_) flyout_->Changed();
-  if (picker_) picker_->Changed();
-  if (settingsWnd_) settingsWnd_->Changed();
-  if (errorWnd_) errorWnd_->Changed();
-  for (ToastBase* t : toasts_) t->Invalidate();
-}
-
-void App::DeleteWindow(ui::Window* w) { delete w; }
-
-void App::ScheduleTrim() { SetTimer(host_, kTimerTrim, 3000, nullptr); }
-
-void App::MaybeTrim() {
-  bool any = !toasts_.empty() || (flyout_ && flyout_->visible()) || (picker_ && picker_->visible()) ||
-             (settingsWnd_ && settingsWnd_->visible()) || (errorWnd_ && errorWnd_->visible());
-  if (any) return;
-  // Drop decoded bitmaps of anything not on screen; thumbnails reload lazily.
-  for (auto& it : items_) {
-    it->thumb.reset();
-    it->thumbRequested = false;
-  }
-  for (auto& j : jobs_) j->thumb.reset();
-  ReleaseAppIconImages();
-  ui::Gfx::Get().ReleaseIdle();
-  util::TrimMemory();
-}

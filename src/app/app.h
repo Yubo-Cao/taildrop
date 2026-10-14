@@ -1,14 +1,23 @@
+// TailDrop.exe: the background listener. It owns the tray icon, follows
+// tailscaled, receives and sends files, and drives TailDropUI.exe (WinUI 3),
+// which it starts only while there is something to show.
 #pragma once
 
 #include <windows.h>
 
+#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "../common/shared.h"
+#include "ipc.h"
 #include "settings.h"
-#include "ui.h"
+
+namespace json {
+struct Value;
+}
 
 // Messages posted to the host window by worker threads.
 enum : UINT {
@@ -18,27 +27,35 @@ enum : UINT {
   WM_APP_FILESWAITING,  //
   WM_APP_PEERSDIRTY,    //
   WM_APP_DEVICES,       // lParam = DeviceSnapshot*
-  WM_APP_THUMB,         // wParam = item id, lParam = std::shared_ptr<ui::Image>*
   WM_APP_JOBPROGRESS,   // wParam = job id, lParam = JobProgress*
   WM_APP_SAVED,         // wParam = item id, lParam = SaveResult*
   WM_APP_PULLED,        // lParam = PulledFile*
-  WM_APP_DELETEWINDOW,  // lParam = ui::Window*
   WM_APP_TRAYDRAG,      // wParam = 1 drag started, 2 hovering icon, 3 button released
+  WM_APP_COMMAND,       // lParam = Command* (from WM_COPYDATA)
 };
 
 enum class Conn { Unknown, NoService, OtherUser, NeedsLogin, NeedsMachineAuth, Stopped, Starting, Running };
 
+// What a device's icon shows. Peers only report their OS and name, so the
+// automatic choice is a guess; users can pick another per device.
 enum class DeviceKind { PC, Laptop, Phone, Tablet, Server, Other };
-wchar_t KindGlyph(DeviceKind k);
-const wchar_t* KindKey(DeviceKind k);
+inline constexpr DeviceKind kAllKinds[] = {DeviceKind::PC,     DeviceKind::Laptop, DeviceKind::Phone,
+                                           DeviceKind::Tablet, DeviceKind::Server, DeviceKind::Other};
+const wchar_t* KindKey(DeviceKind k);  // stable id: "pc", "laptop", ...
+std::optional<DeviceKind> KindFromKey(const std::wstring& key);
 
 struct Device {
   std::string stableId;
   int64_t nodeId = 0;
-  std::wstring name;
+  std::wstring name;      // what TailDrop shows: the nickname, else hostName
+  std::wstring hostName;  // Tailscale's name for it
+  std::wstring nickname;
   std::wstring dns;
   std::wstring os;
+  std::wstring ip;
   DeviceKind kind = DeviceKind::Other;
+  DeviceKind autoKind = DeviceKind::Other;
+  bool customKind = false;
   bool online = false;
 };
 
@@ -71,16 +88,7 @@ struct Item {
   FILETIME firstSeenTime{};
   ULONGLONG deadline = 0;
   std::wstring landName;  // basename tailscaled finalized the file under
-  std::shared_ptr<ui::Image> thumb;
-  bool thumbRequested = false;
-  std::wstring note;
-};
-
-struct Batch {
-  int id = 0;
-  std::vector<int> items;
-  class ReceiveToast* toast = nullptr;
-  ULONGLONG lastStart = 0;
+  std::string note;       // error code for the UI, e.g. "incomplete"
 };
 
 enum class JobState { Preparing, Sending, Done, Failed, Cancelled };
@@ -92,19 +100,22 @@ struct SendJob {
   JobState state = JobState::Preparing;
   int64_t total = 0, sent = 0;
   int fileIndex = 0, fileCount = 0;
-  std::wstring current, error;
+  std::wstring current;
+  std::string error;  // error code for the UI
+  std::wstring errorDetail;
   HANDLE cancel = nullptr;
-  ULONGLONG started = 0;
+  ULONGLONG started = 0, finished = 0;
   double rate = 0;
-  class SendToast* toast = nullptr;
-  std::shared_ptr<ui::Image> thumb;
+  bool dismissed = false;  // its notification is gone
 };
 
 struct JobProgress {
   JobState state;
   int64_t total, sent;
   int fileIndex, fileCount;
-  std::wstring current, error;
+  std::wstring current;
+  std::string error;
+  std::wstring errorDetail;
 };
 
 struct SaveResult {
@@ -117,71 +128,10 @@ struct PulledFile {
   int64_t size;
 };
 
-class Flyout;
-class PickerWindow;
-class SettingsWindow;
-class ErrorWindow;
-class ToastBase;
-
 class App {
  public:
   static App& Get();
   int Run(const std::vector<std::wstring>& args);
-
-  HWND host() const { return host_; }
-  Conn conn() const { return conn_; }
-  bool connected() const { return conn_ == Conn::Running; }
-  std::wstring ConnMessage() const;
-  const std::wstring& selfName() const { return selfName_; }
-  const std::wstring& tailnet() const { return tailnet_; }
-  const std::vector<Device>& devices() const { return devices_; }
-  // Devices with favorites first, then online, then by name.
-  std::vector<const Device*> SortedDevices() const;
-  const Device* FindDevice(const std::string& stableId) const;
-  bool IsFavorite(const std::string& stableId) const;
-  void ToggleFavorite(const Device& d);
-  const std::vector<td::Favorite>& favorites() const { return favorites_; }
-
-  Settings& settings() { return settings_; }
-  void SettingsChanged();
-
-  const std::vector<std::unique_ptr<Item>>& items() const { return items_; }
-  Item* FindItem(int id);
-  Batch* FindBatch(int id);
-  SendJob* FindJob(int id);
-  int PendingCount() const;
-
-  // Receiving.
-  void SaveItem(int id, const std::wstring& dir = L"");
-  void SaveBatch(int batch, const std::wstring& dir = L"");
-  void OpenItem(int id);
-  void RevealItem(int id);
-  void DiscardItem(int id);
-  void ForgetItem(int id);
-  void DragItems(HWND from, const std::vector<int>& ids);
-  void RequestThumb(Item* it);
-
-  // Sending.
-  void SendTo(const std::string& stableId, std::vector<std::wstring> paths);
-  void PickAndSend(const std::string& stableId);
-  void CancelJob(int id);
-  void RetryJob(int id);
-
-  // Windows.
-  void ToggleFlyout();
-  void ShowFlyout(bool dropMode);
-  void HideFlyout();
-  void ShowPicker(std::vector<std::wstring> paths);
-  void ShowSettings();
-  void ShowError();
-  void OpenTailscale();
-  void OpenInbox();
-  void RefreshDevices(bool soon = false);
-  void LayoutToasts();
-  void CloseToast(ToastBase* t);
-  void Repaint();
-  void ScheduleTrim();
-  RECT TrayIconRect() const;
 
  private:
   App() = default;
@@ -189,34 +139,81 @@ class App {
   static LRESULT CALLBACK HostProc(HWND, UINT, WPARAM, LPARAM);
   LRESULT HostMessage(UINT, WPARAM, LPARAM);
   void HandleArgs(const std::vector<std::wstring>& args);
-  void OnCopyData(const COPYDATASTRUCT* cds);
+  bool connected() const { return conn_ == Conn::Running; }
 
   // Tray.
   void TrayAdd();
   void TrayUpdate();
   void TrayMenu();
+  RECT TrayIconRect() const;
   void StartDragWatch();
   void StopDragWatch();
 
   // Tailscale.
   void StartBus();
   void SetConn(Conn c);
+  void RefreshDevices(bool soon = false);
   void OnDevices(DeviceSnapshot* snap);
+  void LoadDeviceOverrides();
+  void ApplyDeviceOverrides();
+  void SyncFavorites(bool markMissingOffline);
+  void SyncMenuDevices();
+  void RememberRecent(const std::string& stableId);
+  const Device* FindDevice(const std::string& stableId) const;
+  bool IsFavorite(const std::string& stableId) const;
+  void SetFavorite(const std::string& stableId, bool on);
+  void SetDeviceKind(const std::string& stableId, std::optional<DeviceKind> kind);
+  void SetNickname(const std::string& stableId, const std::wstring& name);
+
+  // Receiving.
   void OnIncoming(std::vector<Partial>* list);
   void OnFilesWaiting();
   void OnPulled(PulledFile* f);
   void PollLanding();
   bool TryLand(Item* it);
   void ScanInbox();
-
-  void OnJobProgress(int id, JobProgress* p);
-  void OnSaved(int id, SaveResult* r);
   Item* NewItem(const std::wstring& name);
-  void AttachToBatch(Item* it, bool allowJoin);
+  Item* FindItem(int id);
+  void AttachToBatch(Item* it);
   void ItemReady(Item* it);
-  void UpdateBatch(int batch);
-  void DeleteWindow(ui::Window* w);
-  void MaybeTrim();
+  int PendingCount() const;
+  void SaveItem(int id, const std::wstring& dir);
+  void SaveBatch(int batch, const std::wstring& dir);
+  void OnSaved(int id, SaveResult* r);
+  void OpenItem(int id);
+  void RevealItem(int id);
+  void DiscardItem(int id);
+  void ForgetItem(int id);
+  void CheckVanished();
+
+  // Sending.
+  void SendTo(const std::string& stableId, std::vector<std::wstring> paths);
+  void OnJobProgress(int id, JobProgress* p);
+  SendJob* FindJob(int id);
+  void CancelJob(int id);
+  void RetryJob(int id);
+  void DismissJob(int id);
+
+  // The WinUI process.
+  void EnsureUi(bool warm);
+  void Show(const std::string& json);  // queued until the UI connects
+  void ShowFlyout(bool dropMode);
+  void ShowWhat(const char* what);
+  void OnUiConnected();
+  void OnUiCommand(const std::string& line);
+  void OnUiDisconnected();
+  void Publish(unsigned what);  // coalesced; flushed by kTimerPublish
+  void Flush();
+  std::string StateJson() const;
+  std::string SettingsJson() const;
+  std::string DevicesJson() const;
+  std::string ItemsJson() const;
+  std::string JobsJson() const;
+  std::string TrayJson() const;
+  void ApplySetting(const std::string& key, const json::Value& value);
+
+  void OpenTailscale();
+  void OpenInbox();
 
   HWND host_ = nullptr;
   UINT taskbarCreated_ = 0;
@@ -224,23 +221,26 @@ class App {
   std::wstring selfName_, tailnet_;
   std::vector<Device> devices_;
   std::vector<td::Favorite> favorites_;
+  std::map<std::string, DeviceKind> kindOverrides_;
+  std::map<std::string, std::wstring> nicknames_;
+  std::vector<std::string> recent_;  // devices files were sent to, newest first
   Settings settings_;
 
   std::vector<std::unique_ptr<Item>> items_;
-  std::vector<std::unique_ptr<Batch>> batches_;
   std::vector<std::unique_ptr<SendJob>> jobs_;
   int nextId_ = 1;
+  int openBatch_ = 0;
+  ULONGLONG openBatchAt_ = 0;
 
-  std::unique_ptr<Flyout> flyout_;
-  std::unique_ptr<PickerWindow> picker_;
-  std::unique_ptr<SettingsWindow> settingsWnd_;
-  std::unique_ptr<ErrorWindow> errorWnd_;
-  std::vector<ToastBase*> toasts_;  // owned; deleted via WM_APP_DELETEWINDOW
+  UiLink ui_;
+  HANDLE uiProcess_ = nullptr;
+  ULONGLONG uiStarted_ = 0;
+  std::vector<std::string> pendingShows_;
+  unsigned dirty_ = 0;
 
   HANDLE stop_ = nullptr;
   bool devicesInFlight_ = false, devicesAgain_ = false;
   bool pulling_ = false;
-  ULONGLONG flyoutHiddenAt_ = 0;
   bool trayDragShown_ = false;
   bool errorShownOnce_ = false;
   bool landingTimer_ = false;
@@ -248,4 +248,15 @@ class App {
   int trayIconKind_ = -1;
 };
 
-enum : UINT_PTR { kTimerLanding = 1, kTimerDevices = 2, kTimerTrim = 3, kTimerTrayDragEnd = 4, kTimerStartup = 5 };
+enum : unsigned { kPubState = 1, kPubSettings = 2, kPubDevices = 4, kPubItems = 8, kPubJobs = 16, kPubAll = 31 };
+
+enum : UINT_PTR {
+  kTimerLanding = 1,
+  kTimerDevices,
+  kTimerTrayDragEnd,
+  kTimerStartupCheck,
+  kTimerVanished,
+  kTimerPublish,
+  kTimerJobs,
+  kTimerTrim,
+};

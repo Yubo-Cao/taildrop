@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="TailDrop.UI.Views.DevicePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TailDrop.UI.Views"
+    Background="Transparent">
+
+    <Page.Resources>
+        <Style x:Key="DetailLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="DetailValueStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="40,0,40,40" MaxWidth="1080" Spacing="4">
+
+                <!-- The device -->
+                <Border Style="{StaticResource CardBorderStyle}" Padding="20,18">
+                    <Grid ColumnSpacing="18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Width="64" Height="64">
+                            <Ellipse Fill="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.14" />
+                            <FontIcon x:Name="HeroGlyph" FontSize="30" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        </Grid>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock x:Name="HeroName" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse x:Name="HeroDot" Width="8" Height="8" VerticalAlignment="Center" />
+                                <TextBlock x:Name="HeroStatus" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Button x:Name="SendButton" Grid.Column="2" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" Click="OnSend">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE724;" FontSize="14" />
+                                <TextBlock x:Name="SendLabel" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- How it looks in TailDrop -->
+                <TextBlock x:Name="PersonalizeHeader" Style="{StaticResource SectionHeaderStyle}" />
+                <local:SettingsCard x:Name="NameCard" Glyph="&#xE8AC;">
+                    <TextBox x:Name="NameBox" Width="240" KeyDown="OnNameKeyDown" LostFocus="OnNameLostFocus" />
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="IconCard" Glyph="&#xE7F4;">
+                    <ComboBox x:Name="KindBox" Width="240" SelectionChanged="OnKindChanged" />
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="FavoriteCard" Glyph="&#xE734;">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock x:Name="FavoriteState" VerticalAlignment="Center" />
+                        <ToggleSwitch x:Name="FavoriteToggle" Style="{StaticResource CardToggleStyle}" Toggled="OnFavoriteToggled" />
+                    </StackPanel>
+                </local:SettingsCard>
+
+                <!-- What Tailscale knows -->
+                <TextBlock x:Name="DetailsHeader" Style="{StaticResource SectionHeaderStyle}" />
+                <Border Style="{StaticResource CardBorderStyle}" Padding="20,16">
+                    <Grid x:Name="Details" ColumnSpacing="32" RowSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="HostLabel" Style="{StaticResource DetailLabelStyle}" />
+                        <TextBlock x:Name="HostValue" Grid.Column="1" Style="{StaticResource DetailValueStyle}" />
+                        <TextBlock x:Name="DnsLabel" Grid.Row="1" Style="{StaticResource DetailLabelStyle}" />
+                        <TextBlock x:Name="DnsValue" Grid.Row="1" Grid.Column="1" Style="{StaticResource DetailValueStyle}" />
+                        <TextBlock x:Name="IpLabel" Grid.Row="2" Style="{StaticResource DetailLabelStyle}" />
+                        <TextBlock x:Name="IpValue" Grid.Row="2" Grid.Column="1" Style="{StaticResource DetailValueStyle}" />
+                        <TextBlock x:Name="OsLabel" Grid.Row="3" Style="{StaticResource DetailLabelStyle}" />
+                        <TextBlock x:Name="OsValue" Grid.Row="3" Grid.Column="1" Style="{StaticResource DetailValueStyle}" />
+                    </Grid>
+                </Border>
+
+                <InfoBar x:Name="GoneBar" Severity="Warning" IsClosable="False" Margin="0,16,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

@@ -136,7 +136,7 @@ bool ZipStream::Write(const std::function<bool(const void*, size_t)>& sink, std:
     HANDLE f = CreateFileW(e.path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                            nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (f == INVALID_HANDLE_VALUE) {
-      if (error) *error = L"Couldn't read " + util::Widen(e.name) + L".";
+      if (error) *error = util::Widen(e.name);
       return false;
     }
     uint32_t crc = 0;
@@ -147,7 +147,7 @@ bool ZipStream::Write(const std::function<bool(const void*, size_t)>& sink, std:
       DWORD want = static_cast<DWORD>(left < static_cast<int64_t>(data.size()) ? left : data.size());
       if (!ReadFile(f, data.data(), want, &n, nullptr) || n == 0) {
         ok = false;
-        if (error) *error = util::Widen(e.name) + L" changed while it was being sent.";
+        if (error) *error = util::Widen(e.name);
         break;
       }
       crc = Crc32(crc, data.data(), n);

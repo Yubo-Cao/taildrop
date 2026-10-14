@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(TailDrop VERSION 1.0.2 LANGUAGES CXX RC)
+project(TailDrop VERSION 1.1.0 LANGUAGES CXX RC)
 
 if(NOT MSVC)
   message(FATAL_ERROR "TailDrop is a native Windows app; build it with MSVC (see build.ps1).")
@@ -18,10 +18,7 @@ add_link_options("$<$<CONFIG:Release>:/LTCG;/OPT:REF;/OPT:ICF>")
 add_executable(TailDrop WIN32
   src/app/main.cpp
   src/app/app.cpp
-  src/app/flyout.cpp
-  src/app/toast.cpp
-  src/app/dialogs.cpp
-  src/app/ui.cpp
+  src/app/ipc.cpp
   src/app/json.cpp
   src/app/localapi.cpp
   src/app/util.cpp
@@ -30,7 +27,7 @@ add_executable(TailDrop WIN32
   src/app/app.rc
   src/app/app.manifest)
 target_link_libraries(TailDrop PRIVATE
-  d2d1 dwrite dwmapi imm32 shcore comctl32 shlwapi uxtheme psapi ole32 oleaut32 shell32 user32 gdi32 advapi32)
+  imm32 comctl32 ole32 shell32 user32 advapi32)
 
 # rc.exe doesn't report the icons it embeds; rebuild resources when they change.
 file(GLOB TD_ICONS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/assets/*.ico)

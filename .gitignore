@@ -4,3 +4,5 @@
 .vs/
 *.user
 __pycache__/
+src/ui/bin/
+src/ui/obj/

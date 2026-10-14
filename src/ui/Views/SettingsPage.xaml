@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="TailDrop.UI.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TailDrop.UI.Views"
+    Background="Transparent">
+
+    <!-- One section of Settings (the window's sidebar picks which). -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="40,0,40,40" MaxWidth="1080">
+
+            <!-- General -->
+            <StackPanel x:Name="GeneralPanel" Spacing="4" Visibility="Collapsed">
+                <Border Style="{StaticResource CardBorderStyle}" Padding="20,16">
+                    <Grid ColumnSpacing="18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Width="48" Height="48">
+                            <Ellipse Fill="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.14" />
+                            <FontIcon Glyph="&#xE968;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        </Grid>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock x:Name="TailscaleTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse x:Name="StatusDot" Width="8" Height="8" VerticalAlignment="Center" />
+                                <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button x:Name="RetryButton" Click="OnRetry" />
+                            <Button x:Name="OpenTailscaleButton" Click="OnOpenTailscale" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <local:SettingsCard x:Name="StartupCard" Glyph="&#xE7E8;">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock x:Name="StartupState" VerticalAlignment="Center" />
+                        <ToggleSwitch x:Name="StartupToggle" Style="{StaticResource CardToggleStyle}" Toggled="OnStartupToggled" />
+                    </StackPanel>
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="SummaryFolderCard" Glyph="&#xE8B7;">
+                    <HyperlinkButton x:Name="SummaryFolderLink" Click="OnGoReceiving" />
+                </local:SettingsCard>
+            </StackPanel>
+
+            <!-- Receiving -->
+            <StackPanel x:Name="ReceivingPanel" Spacing="4" Visibility="Collapsed">
+                <local:SettingsCard x:Name="FolderCard" Glyph="&#xE8B7;">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <HyperlinkButton x:Name="ResetFolderButton" Click="OnResetFolder" />
+                        <Button x:Name="ChangeFolderButton" Click="OnChangeFolder" />
+                    </StackPanel>
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="AutoSaveCard" Glyph="&#xE896;">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock x:Name="AutoSaveState" VerticalAlignment="Center" />
+                        <ToggleSwitch x:Name="AutoSaveToggle" Style="{StaticResource CardToggleStyle}" Toggled="OnAutoSaveToggled" />
+                    </StackPanel>
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="InboxCard" Glyph="&#xE81C;">
+                    <Button x:Name="OpenInboxButton" Click="OnOpenInbox" />
+                </local:SettingsCard>
+            </StackPanel>
+
+            <!-- Sending -->
+            <StackPanel x:Name="SendingPanel" Spacing="4" Visibility="Collapsed">
+                <local:SettingsCard x:Name="TrayDropCard" Glyph="&#xE7C4;">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock x:Name="TrayDropState" VerticalAlignment="Center" />
+                        <ToggleSwitch x:Name="TrayDropToggle" Style="{StaticResource CardToggleStyle}" Toggled="OnTrayDropToggled" />
+                    </StackPanel>
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="ExplorerCard" Glyph="&#xEC50;">
+                    <Border x:Name="ExplorerBadge" CornerRadius="10" Padding="10,3">
+                        <TextBlock x:Name="ExplorerBadgeText" Style="{StaticResource CaptionTextBlockStyle}" />
+                    </Border>
+                </local:SettingsCard>
+            </StackPanel>
+
+            <!-- Devices -->
+            <StackPanel x:Name="DevicesPanel" Spacing="4" Visibility="Collapsed">
+                <TextBlock x:Name="DevicesHint" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="1,0,0,8" />
+                <ItemsRepeater x:Name="DeviceList">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="4" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="local:DeviceVm">
+                            <Button Tag="{x:Bind Self}" Style="{StaticResource CardButtonStyle}" Click="OnDeviceClick" RightTapped="OnDeviceRightTapped"
+                                    AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Width="24" Margin="2,0,4,0">
+                                        <FontIcon Glyph="{x:Bind Glyph, Mode=OneWay}" FontSize="20" Opacity="{x:Bind ContentOpacity, Mode=OneWay}" />
+                                        <Ellipse Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-3,-2"
+                                                 Fill="{ThemeResource SystemFillColorSuccessBrush}" Stroke="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                 StrokeThickness="1" Opacity="{x:Bind OnlineDotOpacity, Mode=OneWay}" />
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="14" VerticalAlignment="Center"
+                                              Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
+                                    <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+                <TextBlock x:Name="NoDevices" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="1,4,0,0" Visibility="Collapsed" />
+            </StackPanel>
+
+            <!-- About -->
+            <StackPanel x:Name="AboutPanel" Spacing="4" Visibility="Collapsed">
+                <Border Style="{StaticResource CardBorderStyle}" Padding="20,18">
+                    <Grid ColumnSpacing="18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Image Source="ms-appx:///Assets/app.png" Width="56" Height="56" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="TailDrop" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock x:Name="VersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <HyperlinkButton x:Name="GitHubLink" Grid.Column="2" VerticalAlignment="Center"
+                                         NavigateUri="https://github.com/Yubo-Cao/taildrop" />
+                    </Grid>
+                </Border>
+                <local:SettingsCard x:Name="LicenseCard" Glyph="&#xE8F1;">
+                    <HyperlinkButton x:Name="LicenseLink" NavigateUri="https://github.com/Yubo-Cao/taildrop/blob/main/LICENSE" />
+                </local:SettingsCard>
+                <local:SettingsCard x:Name="IssuesCard" Glyph="&#xED15;">
+                    <HyperlinkButton x:Name="IssuesLink" NavigateUri="https://github.com/Yubo-Cao/taildrop/issues" />
+                </local:SettingsCard>
+                <TextBlock x:Name="Disclaimer" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="1,12,0,0"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>

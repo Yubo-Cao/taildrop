@@ -17,8 +17,8 @@ class ZipStream {
   int64_t size() const { return total_; }
   size_t count() const { return entries_.size(); }
   // Writes the archive through `sink`; stops (returning false) when the sink
-  // fails or a file changed size since Prepare.
-  bool Write(const std::function<bool(const void*, size_t)>& sink, std::wstring* error);
+  // fails or a file can't be read (its entry name goes to *failedEntry).
+  bool Write(const std::function<bool(const void*, size_t)>& sink, std::wstring* failedEntry);
 
  private:
   struct Entry {

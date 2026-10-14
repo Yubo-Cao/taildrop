@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
   Builds TailDrop.exe, TailDropShell.dll and the TailDrop.msix sparse package
-  into build\ with MSVC + Ninja.
+  into build\ with MSVC + Ninja, and the WinUI 3 interface into build\ui with
+  the .NET SDK.
 .PARAMETER Publisher
   Subject of the certificate that will sign TailDrop.msix. The package
   manifest's Publisher must match it exactly.
@@ -20,6 +21,8 @@ $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (-not $vs) { throw 'Visual Studio with the C++ workload was not found.' }
 $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+# vcvars and the NativeAOT linker both look for vswhere on PATH.
+$env:PATH = (Split-Path $vswhere) + ';' + $env:PATH
 
 $build = Join-Path $root 'build'
 # Prefer the CMake and Ninja that ship with Visual Studio over others on PATH.
@@ -47,5 +50,11 @@ $xml = [IO.File]::ReadAllText($manifest) -replace 'Publisher="[^"]*"', "Publishe
 & $makeappx.FullName pack /d $stage /p (Join-Path $build 'TailDrop.msix') /nv /o | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
 
-Get-Item (Join-Path $build 'TailDrop.exe'), (Join-Path $build 'TailDropShell.dll'), (Join-Path $build 'TailDrop.msix') |
-  Select-Object Name, Length
+# The WinUI 3 user interface (NativeAOT, Windows App SDK bundled) into build\ui.
+$ui = Join-Path $build 'ui'
+Remove-Item $ui -Recurse -Force -ErrorAction SilentlyContinue
+dotnet publish (Join-Path $root 'src\ui\TailDropUI.csproj') -c $Config -r win-x64 -o $ui --nologo -v quiet
+if ($LASTEXITCODE -ne 0) { throw "UI build failed ($LASTEXITCODE)" }
+
+Get-Item (Join-Path $build 'TailDrop.exe'), (Join-Path $build 'TailDropShell.dll'), (Join-Path $build 'TailDrop.msix'),
+  (Join-Path $ui 'TailDropUI.exe') | Select-Object Name, Length

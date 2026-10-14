@@ -18,6 +18,7 @@ if ($p) {
   $p | Wait-Process -Timeout 5 -ErrorAction SilentlyContinue
   Get-Process TailDrop -ErrorAction SilentlyContinue | Stop-Process -Force
 }
+Get-Process TailDropUI -ErrorAction SilentlyContinue | Stop-Process -Force
 
 $menu = Join-Path $dest 'menu.ps1'
 if (-not (Test-Path $menu)) { $menu = Join-Path $PSScriptRoot 'menu.ps1' }
@@ -41,7 +42,7 @@ if ($waiting.Count -and $RemoveInbox) {
 
 # Explorer may still hold the shell extension; a locked DLL is left behind
 # (harmless once unregistered) and can be deleted after signing out.
-Remove-Item (Join-Path $dest 'package') -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $dest 'package'), (Join-Path $dest 'ui') -Recurse -Force -ErrorAction SilentlyContinue
 Get-ChildItem $dest -File -ErrorAction SilentlyContinue | ForEach-Object {
   try { Remove-Item $_.FullName -Force -ErrorAction Stop }
   catch { Write-Host "In use, will be left behind: $($_.Name)" }

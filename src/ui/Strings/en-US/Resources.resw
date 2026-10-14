@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="About_Disclaimer" xml:space="preserve">
+    <value>TailDrop is an independent app that uses Taildrop, a feature of Tailscale. It isn't made or endorsed by Tailscale Inc. Tailscale is a trademark of Tailscale Inc.</value>
+  </data>
+  <data name="About_GitHub" xml:space="preserve">
+    <value>View on GitHub</value>
+  </data>
+  <data name="About_IssuesDescription" xml:space="preserve">
+    <value>Report a problem or suggest a feature</value>
+  </data>
+  <data name="About_IssuesHeader" xml:space="preserve">
+    <value>Feedback</value>
+  </data>
+  <data name="About_IssuesLink" xml:space="preserve">
+    <value>Open an issue</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>Open source under the MIT License</value>
+  </data>
+  <data name="About_LicenseHeader" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="About_LicenseLink" xml:space="preserve">
+    <value>View license</value>
+  </data>
+  <data name="About_Version" xml:space="preserve">
+    <value>Version {0} · Send and receive files with Taildrop</value>
+  </data>
+  <data name="AddFavorite" xml:space="preserve">
+    <value>Add to favorites</value>
+  </data>
+  <data name="Automatic" xml:space="preserve">
+    <value>Automatic ({0})</value>
+  </data>
+  <data name="AutoSave_Description" xml:space="preserve">
+    <value>Save new files to the folder above without asking</value>
+  </data>
+  <data name="AutoSave_Header" xml:space="preserve">
+    <value>Save received files automatically</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>Waiting for Tailscale…</value>
+  </data>
+  <data name="ChooseDevice" xml:space="preserve">
+    <value>Send to</value>
+  </data>
+  <data name="ChooseFolder" xml:space="preserve">
+    <value>Choose a folder…</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Conn_needsLogin" xml:space="preserve">
+    <value>Sign in to Tailscale to send and receive files.</value>
+  </data>
+  <data name="Conn_needsMachineAuth" xml:space="preserve">
+    <value>This PC is waiting for approval from your tailnet's admin.</value>
+  </data>
+  <data name="Conn_noService" xml:space="preserve">
+    <value>Tailscale isn't installed, or its service isn't running. Install Tailscale, then sign in.</value>
+  </data>
+  <data name="Conn_otherUser" xml:space="preserve">
+    <value>Tailscale is being used by another Windows user on this PC.</value>
+  </data>
+  <data name="Conn_running" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="Conn_short_needsLogin" xml:space="preserve">
+    <value>Sign in to Tailscale</value>
+  </data>
+  <data name="Conn_short_needsMachineAuth" xml:space="preserve">
+    <value>Waiting for approval</value>
+  </data>
+  <data name="Conn_short_noService" xml:space="preserve">
+    <value>Tailscale isn't installed</value>
+  </data>
+  <data name="Conn_short_otherUser" xml:space="preserve">
+    <value>In use by another user</value>
+  </data>
+  <data name="Conn_short_running" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="Conn_short_starting" xml:space="preserve">
+    <value>Starting…</value>
+  </data>
+  <data name="Conn_short_stopped" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="Conn_short_unknown" xml:space="preserve">
+    <value>Checking…</value>
+  </data>
+  <data name="Conn_starting" xml:space="preserve">
+    <value>Tailscale is starting…</value>
+  </data>
+  <data name="Conn_stopped" xml:space="preserve">
+    <value>Tailscale is disconnected. Connect it to send and receive files.</value>
+  </data>
+  <data name="Conn_unknown" xml:space="preserve">
+    <value>Checking Tailscale…</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="ConnectedAs" xml:space="preserve">
+    <value>Connected to {1} as {0}</value>
+  </data>
+  <data name="ConnectedTo" xml:space="preserve">
+    <value>Connected to {0}</value>
+  </data>
+  <data name="DefaultSuffix" xml:space="preserve">
+    <value>(default)</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="DeleteAll" xml:space="preserve">
+    <value>Delete all</value>
+  </data>
+  <data name="Detail_Dns" xml:space="preserve">
+    <value>DNS name</value>
+  </data>
+  <data name="Detail_Host" xml:space="preserve">
+    <value>Tailscale name</value>
+  </data>
+  <data name="Detail_Ip" xml:space="preserve">
+    <value>Tailscale IP</value>
+  </data>
+  <data name="Detail_Os" xml:space="preserve">
+    <value>Operating system</value>
+  </data>
+  <data name="Device_GoneMessage" xml:space="preserve">
+    <value>It may have been removed or renamed. Its settings are kept.</value>
+  </data>
+  <data name="Device_GoneTitle" xml:space="preserve">
+    <value>This device is no longer in your tailnet</value>
+  </data>
+  <data name="Devices_Hint" xml:space="preserve">
+    <value>Choose a name, an icon and favorites. Favorites come first in the tray panel and in the File Explorer menu.</value>
+  </data>
+  <data name="DeviceSettings" xml:space="preserve">
+    <value>Device settings</value>
+  </data>
+  <data name="Dismiss" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="DropChoose" xml:space="preserve">
+    <value>Choose a device</value>
+  </data>
+  <data name="DropOffline" xml:space="preserve">
+    <value>{0} is offline</value>
+  </data>
+  <data name="DropOnDevice" xml:space="preserve">
+    <value>Drop on a device</value>
+  </data>
+  <data name="DropSendTo" xml:space="preserve">
+    <value>Send to {0}</value>
+  </data>
+  <data name="Err_folderUnreadable" xml:space="preserve">
+    <value>Couldn't read the folder {1}.</value>
+  </data>
+  <data name="Err_noTailscale" xml:space="preserve">
+    <value>Tailscale isn't connected.</value>
+  </data>
+  <data name="Err_nothing" xml:space="preserve">
+    <value>There was nothing to send.</value>
+  </data>
+  <data name="Err_notTarget" xml:space="preserve">
+    <value>{0} can't receive files with Taildrop.</value>
+  </data>
+  <data name="Err_readFailed" xml:space="preserve">
+    <value>Couldn't read {1}.</value>
+  </data>
+  <data name="Err_refused" xml:space="preserve">
+    <value>{0} didn't accept the files.</value>
+  </data>
+  <data name="Err_server" xml:space="preserve">
+    <value>{0} reported an error: {1}</value>
+  </data>
+  <data name="Err_unreachable" xml:space="preserve">
+    <value>Couldn't reach {0}. Make sure it's online and connected to Tailscale.</value>
+  </data>
+  <data name="Error_SignInTitle" xml:space="preserve">
+    <value>You're not signed in to Tailscale</value>
+  </data>
+  <data name="Error_Title" xml:space="preserve">
+    <value>TailDrop can't reach Tailscale</value>
+  </data>
+  <data name="Explorer_BadgeClassic" xml:space="preserve">
+    <value>Classic menu</value>
+  </data>
+  <data name="Explorer_BadgeWin11" xml:space="preserve">
+    <value>Windows 11 menu</value>
+  </data>
+  <data name="Explorer_Classic" xml:space="preserve">
+    <value>Under “Show more options”. Turn on Developer Mode and reinstall TailDrop to show it in the Windows 11 menu.</value>
+  </data>
+  <data name="Explorer_Header" xml:space="preserve">
+    <value>Send with TailDrop in File Explorer</value>
+  </data>
+  <data name="Explorer_Win11" xml:space="preserve">
+    <value>Right-click files to send them. Favorites come first, then recent devices.</value>
+  </data>
+  <data name="Favorite_Description" xml:space="preserve">
+    <value>Favorites come first in the tray panel and in the File Explorer menu</value>
+  </data>
+  <data name="Favorite_Header" xml:space="preserve">
+    <value>Favorite</value>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>{0} file</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="Folder_Change" xml:space="preserve">
+    <value>Change folder</value>
+  </data>
+  <data name="Folder_Header" xml:space="preserve">
+    <value>Save received files to</value>
+  </data>
+  <data name="Folder_Reset" xml:space="preserve">
+    <value>Use Downloads</value>
+  </data>
+  <data name="GetTailscale" xml:space="preserve">
+    <value>Get Tailscale</value>
+  </data>
+  <data name="Icon" xml:space="preserve">
+    <value>Icon</value>
+  </data>
+  <data name="Icon_Description" xml:space="preserve">
+    <value>How this device looks in TailDrop</value>
+  </data>
+  <data name="Icon_Header" xml:space="preserve">
+    <value>Icon</value>
+  </data>
+  <data name="Inbox_Description" xml:space="preserve">
+    <value>Files you haven't saved yet wait in {0}</value>
+  </data>
+  <data name="Inbox_Header" xml:space="preserve">
+    <value>Files waiting to be saved</value>
+  </data>
+  <data name="Inbox_Open" xml:space="preserve">
+    <value>Open folder</value>
+  </data>
+  <data name="InboxButton" xml:space="preserve">
+    <value>Received files</value>
+  </data>
+  <data name="Item_landing" xml:space="preserve">
+    <value>Finishing…</value>
+  </data>
+  <data name="Item_pending" xml:space="preserve">
+    <value>{0} · Not saved yet</value>
+  </data>
+  <data name="Item_receiving" xml:space="preserve">
+    <value>Receiving · {0}%</value>
+  </data>
+  <data name="Item_saved" xml:space="preserve">
+    <value>Saved to {0}</value>
+  </data>
+  <data name="Item_saving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="Job_done" xml:space="preserve">
+    <value>Sent to {0}</value>
+  </data>
+  <data name="Job_failed" xml:space="preserve">
+    <value>Couldn't send to {0}</value>
+  </data>
+  <data name="Job_preparing" xml:space="preserve">
+    <value>Getting ready to send to {0}…</value>
+  </data>
+  <data name="Job_sending" xml:space="preserve">
+    <value>Sending to {0}</value>
+  </data>
+  <data name="Kind_auto" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="Kind_laptop" xml:space="preserve">
+    <value>Laptop</value>
+  </data>
+  <data name="Kind_other" xml:space="preserve">
+    <value>Other</value>
+  </data>
+  <data name="Kind_pc" xml:space="preserve">
+    <value>Desktop</value>
+  </data>
+  <data name="Kind_phone" xml:space="preserve">
+    <value>Phone</value>
+  </data>
+  <data name="Kind_server" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Kind_tablet" xml:space="preserve">
+    <value>Tablet</value>
+  </data>
+  <data name="More" xml:space="preserve">
+    <value>More</value>
+  </data>
+  <data name="MoreOptions" xml:space="preserve">
+    <value>More options</value>
+  </data>
+  <data name="Name_Description" xml:space="preserve">
+    <value>Shown in TailDrop instead of {0}. Leave empty to use the Tailscale name.</value>
+  </data>
+  <data name="Name_Header" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Name_Tooltip" xml:space="preserve">
+    <value>Press Enter to save</value>
+  </data>
+  <data name="NFiles" xml:space="preserve">
+    <value>{0} files</value>
+  </data>
+  <data name="NItems" xml:space="preserve">
+    <value>{0} items</value>
+  </data>
+  <data name="NoDevices" xml:space="preserve">
+    <value>No other devices in your tailnet yet. Install Tailscale on your phone or another computer and sign in with the same account.</value>
+  </data>
+  <data name="NoItems" xml:space="preserve">
+    <value>Files sent to this PC with Taildrop appear here.</value>
+  </data>
+  <data name="NotConnectedTitle" xml:space="preserve">
+    <value>Not connected</value>
+  </data>
+  <data name="Note_incomplete" xml:space="preserve">
+    <value>The transfer didn't finish</value>
+  </data>
+  <data name="Note_moveFailed" xml:space="preserve">
+    <value>Couldn't save the file</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Offline" xml:space="preserve">
+    <value>Offline</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Online" xml:space="preserve">
+    <value>Online</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="OpenInboxTooltip" xml:space="preserve">
+    <value>Open received files</value>
+  </data>
+  <data name="OpenTailscale" xml:space="preserve">
+    <value>Open Tailscale</value>
+  </data>
+  <data name="Picker_AddFiles" xml:space="preserve">
+    <value>Add files…</value>
+  </data>
+  <data name="Picker_Title" xml:space="preserve">
+    <value>Send with TailDrop</value>
+  </data>
+  <data name="Received" xml:space="preserve">
+    <value>Received</value>
+  </data>
+  <data name="Receiving" xml:space="preserve">
+    <value>Receiving</value>
+  </data>
+  <data name="RemoveFavorite" xml:space="preserve">
+    <value>Remove from favorites</value>
+  </data>
+  <data name="RemoveFromList" xml:space="preserve">
+    <value>Remove from list</value>
+  </data>
+  <data name="Retry" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="SaveAll" xml:space="preserve">
+    <value>Save all</value>
+  </data>
+  <data name="SaveAllTo" xml:space="preserve">
+    <value>Save all to…</value>
+  </data>
+  <data name="SavesTo" xml:space="preserve">
+    <value>Saves to {0}</value>
+  </data>
+  <data name="SaveTo" xml:space="preserve">
+    <value>Save to…</value>
+  </data>
+  <data name="SaveToFolder" xml:space="preserve">
+    <value>Save to {0}</value>
+  </data>
+  <data name="SaveToLead" xml:space="preserve">
+    <value>Save to</value>
+  </data>
+  <data name="Section_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Section_Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="Section_Devices" xml:space="preserve">
+    <value>Devices</value>
+  </data>
+  <data name="Section_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Section_Personalize" xml:space="preserve">
+    <value>In TailDrop</value>
+  </data>
+  <data name="Section_Receiving" xml:space="preserve">
+    <value>Receiving</value>
+  </data>
+  <data name="Section_Sending" xml:space="preserve">
+    <value>Sending</value>
+  </data>
+  <data name="SendFiles" xml:space="preserve">
+    <value>Send files…</value>
+  </data>
+  <data name="SendTo" xml:space="preserve">
+    <value>Send to</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="ShowFiles" xml:space="preserve">
+    <value>Show files</value>
+  </data>
+  <data name="ShowInFolder" xml:space="preserve">
+    <value>Show in folder</value>
+  </data>
+  <data name="ShowInReceived" xml:space="preserve">
+    <value>Show in received files</value>
+  </data>
+  <data name="SizeBytes" xml:space="preserve">
+    <value>{0} bytes</value>
+  </data>
+  <data name="Startup_Description" xml:space="preserve">
+    <value>Keep TailDrop running in the background so you can receive files</value>
+  </data>
+  <data name="Startup_Header" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="TileOffline.Text" xml:space="preserve">
+    <value>Offline</value>
+  </data>
+  <data name="ToastReceiving" xml:space="preserve">
+    <value>{0}% · {1} of {2}</value>
+  </data>
+  <data name="TrayDrop_Description" xml:space="preserve">
+    <value>Drop files on the TailDrop icon in the taskbar to send them</value>
+  </data>
+  <data name="TrayDrop_Header" xml:space="preserve">
+    <value>Drag files to the tray icon</value>
+  </data>
+  <data name="TryAgain" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="WindowTitle" xml:space="preserve">
+    <value>TailDrop Settings</value>
+  </data>
+</root>

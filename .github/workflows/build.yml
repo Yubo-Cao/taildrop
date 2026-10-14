@@ -16,6 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The WinUI 3 interface is a NativeAOT .NET app.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Build
         shell: pwsh
         # With signing set up, the package manifest's Publisher must match the
@@ -30,6 +35,7 @@ jobs:
           $v = (Get-Item build/TailDrop.exe).VersionInfo.ProductVersion
           New-Item -ItemType Directory -Force dist/app | Out-Null
           Copy-Item build/TailDrop.exe, build/TailDropShell.dll, build/TailDrop.msix dist/app
+          Copy-Item build/ui dist/app/ui -Recurse
           "TD_VERSION=$v" >> $env:GITHUB_ENV
 
       - name: Upload unsigned app files
@@ -68,7 +74,7 @@ jobs:
         run: |
           $zip = "dist/zip/TailDrop-$env:TD_VERSION-x64"
           New-Item -ItemType Directory -Force $zip | Out-Null
-          Copy-Item dist/app/*, install.ps1, uninstall.ps1, menu.ps1, README.md, LICENSE $zip
+          Copy-Item dist/app/*, install.ps1, uninstall.ps1, menu.ps1, README.md, LICENSE $zip -Recurse
           Copy-Item package "$zip/package" -Recurse
           Compress-Archive -Path "$zip/*" -DestinationPath "dist/TailDrop-$env:TD_VERSION-x64.zip"
 

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="TailDrop.UI.Views.ErrorWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="TailDrop">
+
+    <Grid x:Name="Root" Width="440" VerticalAlignment="Top" KeyDown="OnKeyDown">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar" Title="TailDrop">
+            <TitleBar.IconSource>
+                <ImageIconSource ImageSource="ms-appx:///Assets/app.png" />
+            </TitleBar.IconSource>
+        </TitleBar>
+
+        <Grid Grid.Row="1" Padding="24,8,24,0" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid Width="48" Height="48" VerticalAlignment="Top">
+                <Ellipse Fill="{ThemeResource SystemFillColorCautionBackgroundBrush}" />
+                <FontIcon Glyph="&#xE7BA;" FontSize="22" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+            </Grid>
+            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                <TextBlock x:Name="Heading" Style="{StaticResource SubtitleTextBlockStyle}" FontSize="18" TextWrapping="Wrap" />
+                <TextBlock x:Name="Message" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel x:Name="Checking" Orientation="Horizontal" Spacing="8" Margin="0,4,0,0" Visibility="Collapsed">
+                    <ProgressRing IsActive="True" Width="14" Height="14" />
+                    <TextBlock x:Name="CheckingText" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Dialog footer, as in ContentDialog -->
+        <Grid Grid.Row="2" Margin="0,24,0,0" Padding="24" ColumnSpacing="8"
+              Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="OpenButton" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="OnOpenTailscale" />
+            <Button x:Name="RetryButton" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnRetry" />
+            <Button x:Name="DismissButton" Grid.Column="2" HorizontalAlignment="Stretch" Click="OnClose" />
+        </Grid>
+    </Grid>
+</Window>
