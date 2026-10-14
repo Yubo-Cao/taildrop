@@ -1082,7 +1082,7 @@ void AllowDarkFor(HWND hwnd) {
 }
 
 float DpiScaleForPoint(POINT pt) {
-  HMONITOR mon = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+  HMONITOR mon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
   UINT dx = 96, dy = 96;
   GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &dx, &dy);
   return dx / 96.0f;
@@ -1090,7 +1090,7 @@ float DpiScaleForPoint(POINT pt) {
 
 RECT WorkAreaForPoint(POINT pt) {
   MONITORINFO mi{sizeof(mi)};
-  GetMonitorInfoW(MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY), &mi);
+  GetMonitorInfoW(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), &mi);
   return mi.rcWork;
 }
 

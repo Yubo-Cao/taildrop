@@ -80,7 +80,13 @@ Filename: "{app}\TailDrop.exe"; Description: "Start TailDrop"; Flags: nowait pos
 Filename: "{app}\TailDrop.exe"; Parameters: "--exit"; Flags: runhidden waituntilterminated; RunOnceId: "StopTailDrop"
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\menu.ps1"" -Unregister"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveExplorerMenu"
 
+[InstallDelete]
+; Left by an earlier install made with install.ps1.
+Type: files; Name: "{app}\uninstall.ps1"
+
 [UninstallDelete]
+; Windows adds package metadata there when it registers the package in place.
+Type: filesandordirs; Name: "{app}\package"
 Type: files; Name: "{app}\*.old"
 Type: dirifempty; Name: "{app}"
 Type: files; Name: "{localappdata}\YuboCao\TailDrop\taildrop.log"

@@ -265,7 +265,7 @@ void SettingsWindow::Paint(Canvas& c, float w, float h) {
   y += cardH + gap;
   r = R(pad, y, inner, cardH);
   SettingCard(c, r, glyph::kInfo, L"TailDrop " TD_VERSION_W,
-              L"Unofficial Taildrop companion. Not affiliated with Tailscale Inc.", 100);
+              L"Unofficial; not affiliated with Tailscale Inc.", 100);
   c.Button(kIdRepo, R(r.right - 16 - 100, r.top + 18, 100, 32), L"GitHub", ButtonStyle::Standard, glyph::kOpenInNew);
   y += cardH + 24;
 

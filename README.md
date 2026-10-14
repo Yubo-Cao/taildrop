@@ -9,6 +9,23 @@ TailDrop sits in the system tray. When a phone, tablet or another computer sends
 
 TailDrop is unofficial and not affiliated with Tailscale Inc. "Tailscale" and "Taildrop" are trademarks of Tailscale Inc.
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/receive.png" alt="Notification for a received photo, with a preview, its size and type, the destination folder and Save and Open buttons"></td>
+    <td width="50%"><img src="docs/flyout.png" alt="Tray flyout with device tiles to drop files on and a list of received files"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/receive-batch.png" alt="One notification for three photos received together"></td>
+    <td><img src="docs/not-connected.png" alt="Window asking to sign in to Tailscale"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/picker.png" alt="Device picker opened from Other devices in the Explorer menu"></td>
+    <td><img src="docs/settings.png" alt="Settings: download folder, automatic saving, tray drop shelf, Explorer menu status and favorite devices"></td>
+  </tr>
+</table>
+
+<sub>Screenshots use demo device names.</sub>
+
 ## Features
 
 **Receiving**

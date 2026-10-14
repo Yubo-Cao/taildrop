@@ -798,6 +798,13 @@ void App::StartBus() {
 }
 
 void App::SetConn(Conn c) {
+  // TAILDROP_DEMO=offline previews the signed-out screens.
+  static const bool demoOffline = [] {
+    wchar_t v[16] = L"";
+    GetEnvironmentVariableW(L"TAILDROP_DEMO", v, 16);
+    return _wcsicmp(v, L"offline") == 0;
+  }();
+  if (demoOffline) c = Conn::NeedsLogin;
   if (c == conn_) return;
   util::Log(L"tailscale state %d -> %d", static_cast<int>(conn_), static_cast<int>(c));
   bool wasRunning = conn_ == Conn::Running;
@@ -1559,7 +1566,7 @@ void App::OpenInbox() { ShellExecuteW(nullptr, L"open", util::InboxDir().c_str()
 void App::LayoutToasts() {
   if (flyout_ && flyout_->visible()) return;
   RECT ir = TrayIconRect();
-  POINT anchor{ir.right, ir.bottom};
+  POINT anchor{(ir.left + ir.right) / 2, (ir.top + ir.bottom) / 2};
   if (ir.right <= ir.left) {
     RECT wa;
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);

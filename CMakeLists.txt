@@ -32,6 +32,10 @@ add_executable(TailDrop WIN32
 target_link_libraries(TailDrop PRIVATE
   d2d1 dwrite dwmapi imm32 shcore comctl32 shlwapi uxtheme psapi ole32 oleaut32 shell32 user32 gdi32 advapi32)
 
+# rc.exe doesn't report the icons it embeds; rebuild resources when they change.
+file(GLOB TD_ICONS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/assets/*.ico)
+set_source_files_properties(src/app/app.rc src/shell/shell.rc PROPERTIES OBJECT_DEPENDS "${TD_ICONS}")
+
 add_library(TailDropShell SHARED
   src/shell/shell.cpp
   src/shell/shell.rc
