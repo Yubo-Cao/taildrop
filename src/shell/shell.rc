@@ -18,8 +18,8 @@ IDI_DEV_MORE       ICON "..\\..\\assets\\dev-more-light.ico"
 123                ICON "..\\..\\assets\\dev-more-dark.ico"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION 1,0,1,0
+ PRODUCTVERSION 1,0,1,0
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32
@@ -32,10 +32,10 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Yubo Cao"
             VALUE "FileDescription", "TailDrop Explorer menu"
-            VALUE "FileVersion", "1.0.0"
+            VALUE "FileVersion", "1.0.1"
             VALUE "OriginalFilename", "TailDropShell.dll"
             VALUE "ProductName", "TailDrop"
-            VALUE "ProductVersion", "1.0.0"
+            VALUE "ProductVersion", "1.0.1"
         END
     END
     BLOCK "VarFileInfo"

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(TailDrop VERSION 1.0.0 LANGUAGES CXX RC)
+project(TailDrop VERSION 1.0.1 LANGUAGES CXX RC)
 
 if(NOT MSVC)
   message(FATAL_ERROR "TailDrop is a native Windows app; build it with MSVC (see build.ps1).")
@@ -34,7 +34,10 @@ target_link_libraries(TailDrop PRIVATE
 
 # rc.exe doesn't report the icons it embeds; rebuild resources when they change.
 file(GLOB TD_ICONS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/assets/*.ico)
-set_source_files_properties(src/app/app.rc src/shell/shell.rc PROPERTIES OBJECT_DEPENDS "${TD_ICONS}")
+set_source_files_properties(src/app/app.rc PROPERTIES OBJECT_DEPENDS
+  "${TD_ICONS};${CMAKE_SOURCE_DIR}/src/app/resource.h;${CMAKE_SOURCE_DIR}/src/app/app.manifest")
+set_source_files_properties(src/shell/shell.rc PROPERTIES OBJECT_DEPENDS
+  "${TD_ICONS};${CMAKE_SOURCE_DIR}/src/shell/resource.h")
 
 add_library(TailDropShell SHARED
   src/shell/shell.cpp

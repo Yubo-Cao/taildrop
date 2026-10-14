@@ -73,12 +73,13 @@ Root: HKCU; Subkey: "Software\YuboCao"; Flags: uninsdeletekeyifempty
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\YuboCao.TailDrop"; Flags: deletekey dontcreatekey
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\menu.ps1"" -Register"; Flags: runhidden waituntilterminated; StatusMsg: "Adding ""Send with TailDrop"" to File Explorer..."
+; Setup is a 32-bit process: run the 64-bit PowerShell, which can manage packages.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\menu.ps1"" -Register"; Flags: runhidden waituntilterminated 64bit; StatusMsg: "Adding ""Send with TailDrop"" to File Explorer..."
 Filename: "{app}\TailDrop.exe"; Description: "Start TailDrop"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{app}\TailDrop.exe"; Parameters: "--exit"; Flags: runhidden waituntilterminated; RunOnceId: "StopTailDrop"
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\menu.ps1"" -Unregister"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveExplorerMenu"
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\menu.ps1"" -Unregister"; Flags: runhidden waituntilterminated 64bit; RunOnceId: "RemoveExplorerMenu"
 
 [InstallDelete]
 ; Left by an earlier install made with install.ps1.
