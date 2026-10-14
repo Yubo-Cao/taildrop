@@ -1,0 +1,4 @@
+LIBRARY TailDropShell
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
