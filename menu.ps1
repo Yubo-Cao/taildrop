@@ -27,6 +27,12 @@ if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProces
   & $ps64 @argv
   exit $LASTEXITCODE
 }
+# Started from PowerShell 7, Windows PowerShell inherits 7's module paths and
+# then fails to load its own built-in modules.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+  $env:PSModulePath = ($env:PSModulePath -split ';' |
+      Where-Object { $_ -and $_ -notmatch '\\PowerShell\\7' -and $_ -notmatch '\\Documents\\PowerShell\\' }) -join ';'
+}
 $log = Join-Path $env:TEMP 'TailDrop-menu.log'
 trap {
   "$(Get-Date -Format s) $($_.InvocationInfo.PositionMessage)`n$_" | Out-File $log -Append -Encoding utf8
@@ -62,20 +68,19 @@ if (-not $Register) { throw 'Pass -Register or -Unregister.' }
 
 $win11 = $false
 if (-not $Classic -and [Environment]::OSVersion.Version.Build -ge 22000) {
-  $msix = Join-Path $dir 'TailDrop.msix'
-  $signed = (Get-AuthenticodeSignature $msix).Status -eq 'Valid'
-  $unlock = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -ErrorAction SilentlyContinue
-  $devMode = $unlock -and $unlock.AllowDevelopmentWithoutDevLicense -eq 1
-  if ($signed -or $devMode) {
-    try {
-      Get-AppxPackage -Name $appId | Remove-AppxPackage -ErrorAction SilentlyContinue
-      if ($signed) { Add-AppxPackage -Path $msix -ExternalLocation $dir }
-      else { Add-AppxPackage -Register (Join-Path $dir 'package\AppxManifest.xml') -ExternalLocation $dir }
-      $win11 = $true
-    } catch {
-      "$(Get-Date -Format s) Windows 11 menu registration failed: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8
-      Write-Warning "Windows 11 menu registration failed: $($_.Exception.Message)"
+  $unlock = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock')
+  $devMode = $unlock -and $unlock.GetValue('AllowDevelopmentWithoutDevLicense', 0) -eq 1
+  try {
+    Get-AppxPackage -Name $appId | Remove-AppxPackage -ErrorAction SilentlyContinue
+    if ($devMode) {
+      Add-AppxPackage -Register (Join-Path $dir 'package\AppxManifest.xml') -ExternalLocation $dir
+    } else {
+      # Only succeeds when TailDrop.msix is signed by a trusted certificate.
+      Add-AppxPackage -Path (Join-Path $dir 'TailDrop.msix') -ExternalLocation $dir
     }
+    $win11 = $true
+  } catch {
+    "$(Get-Date -Format s) Windows 11 menu not registered: $($_.Exception.Message)" | Out-File $log -Append -Encoding utf8
   }
 }
 
