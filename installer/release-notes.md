@@ -1,6 +1,13 @@
 An AirDrop-style companion for Tailscale Taildrop on Windows 10 and 11 (x64).
 
-**New in 1.1**
+**New in 1.1.1**
+
+- After the PC wakes from sleep or hibernation, TailDrop reconnects to Tailscale, re-adds its tray icon and restarts the drag-to-tray watch, so tray clicks and incoming files no longer go unnoticed.
+- A click on the tray icon always gets an answer: if the interface stops responding, TailDrop restarts it within a few seconds and shows what you asked for.
+- Files no longer sit at "Finishing": if the Tailscale app hasn't moved a received file into Downloads after a few seconds, TailDrop fetches it itself.
+- The receiving notification shows speed, time left, "n of m" for several files and when the sender has paused, and has a Hide button. Notifications stay on screen at least 30 seconds and above other windows.
+
+**Also in 1.1**
 
 - Every window is now WinUI 3: the tray flyout, notifications, Settings and the send and sign-in dialogs, with WinUI's own controls and motion. They are drawn by a separate `TailDropUI.exe` that starts only when something is on screen. The part that keeps running in the background idles at about 2 MB.
 - Settings uses the Windows 11 Settings layout: a sidebar with your Tailscale account, the title bar drawn into the window, and a page for each device where you can choose its icon and name and make it a favorite.

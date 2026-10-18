@@ -8,6 +8,6 @@
 #define IDI_TRAY_DARK_BADGE 14
 #define IDI_TRAY_DARK_OFF 15
 
-#define TD_VERSION_STR "1.1.0"
-#define TD_VERSION_W L"1.1.0"
-#define TD_VERSION_NUM 1, 1, 0, 0
+#define TD_VERSION_STR "1.1.1"
+#define TD_VERSION_W L"1.1.1"
+#define TD_VERSION_NUM 1, 1, 1, 0
