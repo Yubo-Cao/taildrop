@@ -61,7 +61,20 @@
             </StackPanel>
         </Grid>
 
-        <ProgressBar x:Name="Progress" Grid.Row="3" Maximum="1" Margin="0,12,10,2" Visibility="Collapsed" />
+        <!-- While a file arrives: progress, then speed (or that it is waiting on the sender) and time left. -->
+        <StackPanel x:Name="ProgressPanel" Grid.Row="3" Margin="0,12,10,2" Spacing="6" Visibility="Collapsed">
+            <ProgressBar x:Name="Progress" Maximum="1" />
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="DetailLeft" Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <TextBlock x:Name="DetailRight" Grid.Column="1" Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            </Grid>
+        </StackPanel>
 
         <DropDownButton x:Name="DestButton" Grid.Row="4" Margin="-6,10,0,0" Padding="6,4" Background="Transparent" BorderThickness="0"
                         Visibility="Collapsed">

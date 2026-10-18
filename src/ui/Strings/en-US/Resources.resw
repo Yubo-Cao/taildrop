@@ -477,4 +477,31 @@
   <data name="WindowTitle" xml:space="preserve">
     <value>TailDrop Settings</value>
   </data>
+  <data name="ToastReceivedSoFar" xml:space="preserve">
+    <value>{0} received</value>
+  </data>
+  <data name="NOfM" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="Item_landingSlow" xml:space="preserve">
+    <value>Still finishing · getting the file from Tailscale…</value>
+  </data>
+  <data name="HideNotification" xml:space="preserve">
+    <value>Hide</value>
+  </data>
+  <data name="HideNotificationTip" xml:space="preserve">
+    <value>The file keeps arriving in the background. You'll find it under Received files.</value>
+  </data>
+  <data name="ReceiveStalled" xml:space="preserve">
+    <value>Waiting for the sender…</value>
+  </data>
+  <data name="ReceiveStarting" xml:space="preserve">
+    <value>Starting…</value>
+  </data>
+  <data name="TimeLeftSeconds" xml:space="preserve">
+    <value>About {0} s left</value>
+  </data>
+  <data name="TimeLeftMinutes" xml:space="preserve">
+    <value>About {0} min left</value>
+  </data>
 </root>

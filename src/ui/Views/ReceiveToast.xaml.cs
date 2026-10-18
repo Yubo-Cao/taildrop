@@ -19,6 +19,14 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
     private bool _seenItems, _closed;
     private readonly Dictionary<string, Thumbs.Thumb?> _stripThumbs = new();
 
+    // Progress samples for the speed and time left, and when bytes last arrived.
+    private readonly Queue<(DateTime At, long Got)> _samples = new();
+    private long _lastGot = -1;
+    private DateTime _lastProgress = DateTime.Now, _landingSince = DateTime.MaxValue;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _tick;
+
+    private const double StalledSeconds = 8, SlowLandingSeconds = 5;
+
     public FrameworkElement Root => this;
     public Window? HostWindow { get; set; }
     public event Action? LayoutChanged;
@@ -33,6 +41,11 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
         DestLead.Text = Str.Get("SaveToLead");
         Store.ItemsChanged += Update;
         Store.SettingsChanged += Update;
+        // tailscaled reports progress about once a second, and not at all while
+        // nothing arrives: the speed, time left and "waiting" text age on their own.
+        _tick = DispatcherQueue.CreateTimer();
+        _tick.Interval = TimeSpan.FromSeconds(1);
+        _tick.Tick += (_, _) => Update();
         _ = PrefetchFolderNamesAsync();
         Update();
     }
@@ -53,6 +66,7 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
     {
         if (_closed) return;
         _closed = true;
+        _tick.Stop();
         Store.ItemsChanged -= Update;
         Store.SettingsChanged -= Update;
         HostLink.ToastClosed(_batch);
@@ -92,17 +106,29 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
         bool multi = items.Count > 1;
         var first = items[0];
 
+        bool landing = waiting && !receiving && !pending;
         Caption.Text = receiving ? "TailDrop · " + Str.Get("Receiving") : "TailDrop";
         Title.Text = multi ? Str.F("NFiles", items.Count) : first.Name;
 
         long total = items.Sum(i => Math.Max(0, i.Size));
         long got = items.Sum(i => i.State == "receiving" ? i.Received : Math.Max(0, i.Size));
+        bool sizeKnown = items.All(i => i.Size >= 0) && total > 0;
+        TrackProgress(receiving, landing, got);
+        if (waiting) _tick.Start();
+        else _tick.Stop();
+
         SavedGlyph.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
         Subtitle.Foreground = (Brush)Application.Current.Resources[failed ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
         if (receiving)
-            Subtitle.Text = Str.F("ToastReceiving", total > 0 ? (int)(got * 100 / total) : 0, Format.Size(got), Format.Size(total));
-        else if (waiting && !pending)
-            Subtitle.Text = Str.Get("Item_landing");
+        {
+            string text = sizeKnown
+                ? Str.F("ToastReceiving", (int)(got * 100 / total), Format.Size(got), Format.Size(total))
+                : Str.F("ToastReceivedSoFar", Format.Size(got));
+            int arrived = items.Count(i => !i.IsWaiting);
+            Subtitle.Text = multi ? Str.F("NOfM", arrived, items.Count) + " · " + text : text;
+        }
+        else if (landing)
+            Subtitle.Text = Str.Get((DateTime.Now - _landingSince).TotalSeconds > SlowLandingSeconds ? "Item_landingSlow" : "Item_landing");
         else if (saved)
             Subtitle.Text = Str.F("Item_saved", Format.FolderNameOrPath(System.IO.Path.GetDirectoryName(first.Path) ?? ""));
         else if (failed)
@@ -112,21 +138,37 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
                 ? Str.Get("Note_" + bad.Note)
                 : Format.Size(total) + (multi ? "" : TypeSuffix(first.Name));
 
-        Progress.Visibility = waiting && !pending ? Visibility.Visible : Visibility.Collapsed;
-        Progress.IsIndeterminate = !receiving;
-        Progress.Value = total > 0 ? (double)got / total : 0;
+        bool stalled = receiving && (DateTime.Now - _lastProgress).TotalSeconds > StalledSeconds;
+        ProgressPanel.Visibility = waiting && !pending ? Visibility.Visible : Visibility.Collapsed;
+        Progress.IsIndeterminate = !receiving || !sizeKnown;
+        Progress.ShowPaused = stalled;
+        Progress.Value = sizeKnown ? (double)got / total : 0;
+        UpdateDetail(receiving, stalled, sizeKnown ? total - got : -1);
 
         UpdatePreview(items, multi);
 
         DestButton.Visibility = pending && !Store.Settings.AutoSave ? Visibility.Visible : Visibility.Collapsed;
         DestName.Text = Format.FolderNameOrPath(_dest.Length > 0 ? _dest : Store.Settings.EffectiveDir);
-        DestButton.Flyout = DestMenu();
+        if (pending) DestButton.Flyout = DestMenu();
 
-        Buttons.Visibility = pending || saved || failed ? Visibility.Visible : Visibility.Collapsed;
+        Buttons.Visibility = Visibility.Visible;
         SecondaryButton.Visibility = Visibility.Visible;
         MoreButton.Visibility = Visibility.Visible;
         Grid.SetColumnSpan(PrimaryButton, 1);
-        if (pending)
+        var style = (Style)Application.Current.Resources[waiting && !pending ? "DefaultButtonStyle" : "AccentButtonStyle"];
+        if (PrimaryButton.Style != style) PrimaryButton.Style = style;
+        ToolTipService.SetToolTip(PrimaryButton, null);
+        if (waiting && !pending)
+        {
+            // Nothing to do with the file yet; it keeps arriving with this closed.
+            PrimaryButton.Content = Str.Get("HideNotification");
+            PrimaryButton.IsEnabled = true;
+            ToolTipService.SetToolTip(PrimaryButton, Str.Get("HideNotificationTip"));
+            SecondaryButton.Visibility = Visibility.Collapsed;
+            MoreButton.Visibility = Visibility.Collapsed;
+            Grid.SetColumnSpan(PrimaryButton, 3);
+        }
+        else if (pending)
         {
             PrimaryButton.Content = Str.Get(multi ? "SaveAll" : "Save");
             PrimaryButton.IsEnabled = !items.Any(i => i.State == "saving");
@@ -150,7 +192,61 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
             MoreButton.Visibility = Visibility.Collapsed;
             Grid.SetColumnSpan(PrimaryButton, 3);
         }
+        else
+        {
+            Buttons.Visibility = Visibility.Collapsed;
+        }
         LayoutChanged?.Invoke();
+    }
+
+    private void TrackProgress(bool receiving, bool landing, long got)
+    {
+        var now = DateTime.Now;
+        if (got != _lastGot)
+        {
+            _lastGot = got;
+            _lastProgress = now;
+            _samples.Enqueue((now, got));
+        }
+        while (_samples.Count > 2 && (now - _samples.Peek().At).TotalSeconds > 6) _samples.Dequeue();
+        if (!receiving) _samples.Clear();
+        if (landing && _landingSince == DateTime.MaxValue) _landingSince = now;
+        else if (!landing) _landingSince = DateTime.MaxValue;
+    }
+
+    /// <summary>Bytes per second over the last few seconds; 0 until there are two samples.</summary>
+    private double Rate()
+    {
+        if (_samples.Count < 2) return 0;
+        var first = _samples.Peek();
+        var last = _samples.Last();
+        // Measure up to now, so a transfer that slows down shows it.
+        double seconds = (DateTime.Now - first.At).TotalSeconds;
+        return seconds > 0.5 ? (last.Got - first.Got) / seconds : 0;
+    }
+
+    private void UpdateDetail(bool receiving, bool stalled, long left)
+    {
+        DetailLeft.Foreground = (Brush)Application.Current.Resources[stalled ? "SystemFillColorCautionBrush" : "TextFillColorTertiaryBrush"];
+        DetailRight.Text = "";
+        if (!receiving)
+        {
+            DetailLeft.Text = "";
+            return;
+        }
+        if (stalled)
+        {
+            DetailLeft.Text = Str.Get("ReceiveStalled");
+            return;
+        }
+        double rate = Rate();
+        if (rate <= 0)
+        {
+            DetailLeft.Text = Str.Get("ReceiveStarting");
+            return;
+        }
+        DetailLeft.Text = Format.Rate(rate);
+        if (left > 0) DetailRight.Text = Format.TimeLeft(left / rate);
     }
 
     private static string TypeSuffix(string name)
@@ -184,6 +280,7 @@ public sealed partial class ReceiveToast : UserControl, IToastContent
             {
                 IconImage.Source = _thumb?.Source;
                 IconPlaceholder.Visibility = _thumb == null ? Visibility.Visible : Visibility.Collapsed;
+                IconPlaceholder.Glyph = it.IsWaiting ? "\uE896" : "\uE8A5";
             }
             return;
         }

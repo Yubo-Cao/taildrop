@@ -54,12 +54,14 @@ void UiLink::Loop() {
       continue;
     }
     if (Serve(pipe)) {
+      DWORD pid = clientPid_;
       connected_ = false;
+      clientPid_ = 0;
       {
         std::lock_guard<std::mutex> lock(mu_);
         out_.clear();
       }
-      PostMessageW(host_, WM_APP_UI_DISCONNECTED, 0, 0);
+      PostMessageW(host_, WM_APP_UI_DISCONNECTED, pid, 0);
     }
     DisconnectNamedPipe(pipe);
     CloseHandle(pipe);
@@ -89,6 +91,9 @@ bool UiLink::Serve(HANDLE pipe) {
   CloseHandle(connEv);
   if (!ok) return false;
 
+  ULONG pid = 0;
+  GetNamedPipeClientProcessId(pipe, &pid);
+  clientPid_ = pid;
   connected_ = true;
   PostMessageW(host_, WM_APP_UI_CONNECTED, 0, 0);
 

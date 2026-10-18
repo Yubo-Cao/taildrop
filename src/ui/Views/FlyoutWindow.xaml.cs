@@ -265,7 +265,9 @@ public sealed partial class FlyoutWindow : Window
 
     public static string ItemStatus(ItemInfo i) => i.State switch
     {
-        "receiving" => Str.F("Item_receiving", i.Size > 0 ? (int)(i.Received * 100 / i.Size) : 0),
+        "receiving" => i.Size > 0
+            ? Str.F("Item_receiving", (int)(i.Received * 100 / i.Size))
+            : Str.Get("Receiving") + " · " + Str.F("ToastReceivedSoFar", Format.Size(i.Received)),
         "landing" => Str.Get("Item_landing"),
         "pending" => Str.F("Item_pending", Format.Size(i.Size)),
         "saving" => Str.Get("Item_saving"),

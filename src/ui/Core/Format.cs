@@ -24,6 +24,13 @@ public static class Format
 
     public static string Rate(double bytesPerSecond) => bytesPerSecond > 0 ? Size((long)bytesPerSecond) + "/s" : "";
 
+    public static string TimeLeft(double seconds)
+    {
+        if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0) return "";
+        if (seconds < 60) return Str.F("TimeLeftSeconds", Math.Max(1, (int)Math.Ceiling(seconds / 5) * 5));
+        return Str.F("TimeLeftMinutes", (int)Math.Ceiling(seconds / 60));
+    }
+
     public static readonly string[] Kinds = { "pc", "laptop", "phone", "tablet", "server", "other" };
 
     public static string KindGlyph(string kind) => kind switch

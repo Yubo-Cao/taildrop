@@ -87,6 +87,7 @@ struct Item {
   ULONGLONG firstSeen = 0;
   FILETIME firstSeenTime{};
   ULONGLONG deadline = 0;
+  ULONGLONG doneAt = 0;   // when tailscaled finished receiving it
   std::wstring landName;  // basename tailscaled finalized the file under
   std::string note;       // error code for the UI, e.g. "incomplete"
 };
@@ -134,6 +135,16 @@ class App {
   int Run(const std::vector<std::wstring>& args);
 
  private:
+  // A "show" or "notify" message for the UI: queued until it connects, then
+  // kept until the UI acknowledges it so a UI that hangs or dies loses nothing.
+  struct ShowMsg {
+    std::string json;
+    ULONGLONG queued = 0, sent = 0;
+    int seq = 0;
+    bool flyout = false;
+    bool transient = false;  // dropped rather than queued for a new UI
+  };
+
   App() = default;
   bool CreateHost();
   static LRESULT CALLBACK HostProc(HWND, UINT, WPARAM, LPARAM);
@@ -151,6 +162,7 @@ class App {
 
   // Tailscale.
   void StartBus();
+  void OnResume();
   void SetConn(Conn c);
   void RefreshDevices(bool soon = false);
   void OnDevices(DeviceSnapshot* snap);
@@ -167,7 +179,7 @@ class App {
 
   // Receiving.
   void OnIncoming(std::vector<Partial>* list);
-  void OnFilesWaiting();
+  void OnFilesWaiting(bool force = false);
   void OnPulled(PulledFile* f);
   void PollLanding();
   bool TryLand(Item* it);
@@ -196,12 +208,16 @@ class App {
 
   // The WinUI process.
   void EnsureUi(bool warm);
+  void KillUi();
   void Show(const std::string& json);  // queued until the UI connects
+  void SendShow(ShowMsg m);
+  void QueueShow(ShowMsg m);
+  void CheckUiAlive();
   void ShowFlyout(bool dropMode);
   void ShowWhat(const char* what);
   void OnUiConnected();
   void OnUiCommand(const std::string& line);
-  void OnUiDisconnected();
+  void OnUiDisconnected(DWORD pid);
   void Publish(unsigned what);  // coalesced; flushed by kTimerPublish
   void Flush();
   std::string StateJson() const;
@@ -233,17 +249,22 @@ class App {
   ULONGLONG openBatchAt_ = 0;
 
   UiLink ui_;
+  bool uiReady_ = false;  // connected and given the initial state
   HANDLE uiProcess_ = nullptr;
   ULONGLONG uiStarted_ = 0;
-  std::vector<std::string> pendingShows_;
+  std::vector<ShowMsg> pendingShows_, unacked_;
+  int showSeq_ = 0;
   unsigned dirty_ = 0;
 
   HANDLE stop_ = nullptr;
+  HANDLE busKick_ = nullptr;
+  ULONGLONG resumedAt_ = 0;
   bool devicesInFlight_ = false, devicesAgain_ = false;
   bool pulling_ = false;
   bool trayDragShown_ = false;
   bool errorShownOnce_ = false;
   bool landingTimer_ = false;
+  ULONGLONG forcedPullAt_ = 0;
   HICON trayIcon_ = nullptr;
   int trayIconKind_ = -1;
 };
@@ -259,4 +280,5 @@ enum : UINT_PTR {
   kTimerPublish,
   kTimerJobs,
   kTimerTrim,
+  kTimerUiWatch,
 };
