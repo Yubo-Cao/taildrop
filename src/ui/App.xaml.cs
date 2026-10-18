@@ -57,10 +57,16 @@ public partial class App : Application
         {
             if (Store.Connected && _error != null) _error.Close();
         };
-        HostLink.Disconnected += Exit;
+        Store.Resumed += () =>
+        {
+            // After sleep or hibernation, a UI with nothing on screen makes way for a
+            // fresh one; the next thing to show starts it again.
+            if (!Anything()) Quit();
+        };
+        HostLink.Disconnected += Quit;
         if (!await HostLink.ConnectAsync(argv[at + 1], _ui))
         {
-            Exit();
+            Quit();
             return;
         }
         _idle = _ui.CreateTimer();
@@ -69,12 +75,37 @@ public partial class App : Application
         _idle.Start();
     }
 
+    private bool Anything() =>
+        _busy > 0 || (_flyout?.IsShown ?? false) || _settings != null || _picker != null || _error != null ||
+        (_toasts?.Count ?? 0) > 0;
+
     private void CheckIdle()
     {
-        bool anything = _busy > 0 || (_flyout?.IsShown ?? false) || _settings != null || _picker != null ||
-                        _error != null || (_toasts?.Count ?? 0) > 0;
-        _idleSeconds = anything ? 0 : _idleSeconds + 5;
-        if (_idleSeconds >= 60) Exit();
+        _idleSeconds = Anything() ? 0 : _idleSeconds + 5;
+        if (_idleSeconds >= 60) Quit();
+    }
+
+    private bool _quitting;
+
+    /// <summary>
+    /// Exits for sure. The pipe goes first, so the host knows right away and starts a
+    /// new UI for whatever comes next; WinUI's own shutdown gets two seconds.
+    /// </summary>
+    public void Quit()
+    {
+        if (_quitting) return;
+        _quitting = true;
+        _idle?.Stop();
+        HostLink.Close();
+        _ = Task.Delay(2000).ContinueWith(_ => Native.ExitNow(), TaskScheduler.Default);
+        try
+        {
+            Exit();
+        }
+        catch
+        {
+            Native.ExitNow();
+        }
     }
 
     private void OnShow(ShowMsg msg)

@@ -116,6 +116,7 @@ public sealed partial class ItemVm : Observable
             if (Set(ref _state, value))
             {
                 Raise(nameof(ProgressVisibility));
+                Raise(nameof(ProgressIndeterminate));
                 Raise(nameof(SaveVisibility));
                 Raise(nameof(OpenVisibility));
                 Raise(nameof(RemoveVisibility));
@@ -125,7 +126,14 @@ public sealed partial class ItemVm : Observable
         }
     }
 
-    public double Progress { get => _progress; set => Set(ref _progress, value); }
+    public double Progress
+    {
+        get => _progress;
+        set
+        {
+            if (Set(ref _progress, value)) Raise(nameof(ProgressIndeterminate));
+        }
+    }
 
     public ImageSource? Thumb
     {
@@ -163,7 +171,9 @@ public sealed partial class ItemVm : Observable
         }
     }
 
-    public Visibility ProgressVisibility => State == "receiving" ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ProgressVisibility => State is "receiving" or "landing" ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Finishing up, or a size tailscaled didn't announce.</summary>
+    public bool ProgressIndeterminate => State == "landing" || (State == "receiving" && Progress <= 0);
     public Visibility SaveVisibility => Hover && State == "pending" ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OpenVisibility => Hover && State is "pending" or "saved" ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RemoveVisibility => Hover && State is not ("receiving" or "landing" or "saving") ? Visibility.Visible : Visibility.Collapsed;

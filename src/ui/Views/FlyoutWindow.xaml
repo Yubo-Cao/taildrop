@@ -142,6 +142,7 @@
                                         <TextBlock Text="{x:Bind Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{x:Bind StatusBrush, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
                                         <ProgressBar Value="{x:Bind Progress, Mode=OneWay}" Maximum="1" Margin="0,4,0,0"
+                                                     IsIndeterminate="{x:Bind ProgressIndeterminate, Mode=OneWay}"
                                                      Visibility="{x:Bind ProgressVisibility, Mode=OneWay}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">

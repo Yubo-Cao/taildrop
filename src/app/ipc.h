@@ -14,7 +14,7 @@
 enum : UINT {
   WM_APP_UI_CONNECTED = WM_APP + 50,
   WM_APP_UI_COMMAND,       // lParam = std::string* (one JSON line)
-  WM_APP_UI_DISCONNECTED,
+  WM_APP_UI_DISCONNECTED,  // wParam = the UI's process id
 };
 
 class UiLink {
@@ -24,6 +24,8 @@ class UiLink {
   void Stop();
   const std::wstring& pipeName() const { return name_; }
   bool connected() const { return connected_; }
+  // Process id of the connected UI (0 when none).
+  DWORD clientPid() const { return clientPid_; }
   // Queues one JSON message (without the newline). Dropped if not connected.
   void Send(std::string line);
 
@@ -40,6 +42,7 @@ class UiLink {
   std::mutex mu_;
   std::deque<std::string> out_;
   volatile bool connected_ = false;
+  volatile DWORD clientPid_ = 0;
 };
 
 // Small JSON writer for host -> UI messages.

@@ -44,13 +44,29 @@ public static class HostLink
             while ((line = await reader.ReadLineAsync()) != null)
             {
                 string msg = line;
-                _ui?.TryEnqueue(() => Store.Apply(msg));
+                // The UI thread is gone (the app is on its way out): stop taking messages.
+                if (_ui == null || !_ui.TryEnqueue(() => Store.Apply(msg))) break;
             }
         }
         catch
         {
         }
-        _ui?.TryEnqueue(() => Disconnected?.Invoke());
+        if (_ui == null || !_ui.TryEnqueue(() => Disconnected?.Invoke())) Native.ExitNow();
+    }
+
+    /// <summary>Lets go of the pipe so the host knows at once that this UI is gone.</summary>
+    public static void Close()
+    {
+        lock (WriteLock)
+        {
+            try
+            {
+                _pipe?.Dispose();
+            }
+            catch
+            {
+            }
+        }
     }
 
     private static void Send(Action<Utf8JsonWriter> body)
@@ -109,6 +125,7 @@ public static class HostLink
     public static void DismissJob(int job) => Cmd("dismissJob", "job", job);
     public static void ToastClosed(int batch) => Cmd("toastClosed", "batch", batch);
     public static void Refresh() => Cmd("refresh");
+    public static void Ack(int seq) => Cmd("ack", "seq", seq);
     public static void OpenTailscale() => Cmd("openTailscale");
     public static void OpenInbox() => Cmd("openInbox");
 

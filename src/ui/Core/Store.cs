@@ -23,6 +23,8 @@ public static class Store
     public static event Action<ShowMsg>? ShowRequested;
     public static event Action<NotifyMsg>? NotifyRequested;
     public static event Action? DragEnded;
+    /// <summary>The PC woke from sleep or hibernation.</summary>
+    public static event Action? Resumed;
 
     public static DeviceInfo? Device(string id) => Devices.Find(d => d.Id == id);
     public static ItemInfo? Item(int id) => Items.Find(i => i.Id == id);
@@ -41,42 +43,54 @@ public static class Store
         {
             return;
         }
-        string t = root.TryGetProperty("t", out var tp) ? tp.GetString() ?? "" : "";
-        var ctx = MsgContext.Default;
-        switch (t)
+        try
         {
-            case "state":
-                var s = root.Deserialize(ctx.StateMsg)!;
-                Conn = s.Conn;
-                Self = s.Self;
-                Tailnet = s.Tailnet;
-                StateChanged?.Invoke();
-                break;
-            case "settings":
-                Settings = root.Deserialize(ctx.SettingsInfo)!;
-                SettingsChanged?.Invoke();
-                break;
-            case "devices":
-                Devices = root.Deserialize(ctx.DevicesMsg)!.List;
-                DevicesChanged?.Invoke();
-                break;
-            case "items":
-                Items = root.Deserialize(ctx.ItemsMsg)!.List;
-                ItemsChanged?.Invoke();
-                break;
-            case "jobs":
-                Jobs = root.Deserialize(ctx.JobsMsg)!.List;
-                JobsChanged?.Invoke();
-                break;
-            case "show":
-                ShowRequested?.Invoke(root.Deserialize(ctx.ShowMsg)!);
-                break;
-            case "notify":
-                NotifyRequested?.Invoke(root.Deserialize(ctx.NotifyMsg)!);
-                break;
-            case "dragEnd":
-                DragEnded?.Invoke();
-                break;
+            string t = root.TryGetProperty("t", out var tp) ? tp.GetString() ?? "" : "";
+            var ctx = MsgContext.Default;
+            switch (t)
+            {
+                case "state":
+                    var s = root.Deserialize(ctx.StateMsg)!;
+                    Conn = s.Conn;
+                    Self = s.Self;
+                    Tailnet = s.Tailnet;
+                    StateChanged?.Invoke();
+                    break;
+                case "settings":
+                    Settings = root.Deserialize(ctx.SettingsInfo)!;
+                    SettingsChanged?.Invoke();
+                    break;
+                case "devices":
+                    Devices = root.Deserialize(ctx.DevicesMsg)!.List;
+                    DevicesChanged?.Invoke();
+                    break;
+                case "items":
+                    Items = root.Deserialize(ctx.ItemsMsg)!.List;
+                    ItemsChanged?.Invoke();
+                    break;
+                case "jobs":
+                    Jobs = root.Deserialize(ctx.JobsMsg)!.List;
+                    JobsChanged?.Invoke();
+                    break;
+                case "show":
+                    ShowRequested?.Invoke(root.Deserialize(ctx.ShowMsg)!);
+                    break;
+                case "notify":
+                    NotifyRequested?.Invoke(root.Deserialize(ctx.NotifyMsg)!);
+                    break;
+                case "dragEnd":
+                    DragEnded?.Invoke();
+                    break;
+                case "resumed":
+                    Resumed?.Invoke();
+                    break;
+            }
+        }
+        finally
+        {
+            // The host waits for this (on the UI thread, so it proves the UI is
+            // alive) and starts a new UI if it doesn't come.
+            if (root.TryGetProperty("seq", out var seq) && seq.TryGetInt32(out int n)) HostLink.Ack(n);
         }
     }
 }

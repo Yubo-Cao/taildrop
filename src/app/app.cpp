@@ -132,11 +132,15 @@ std::string FirstLabel(const std::string& dns) {
   return dot == std::string::npos ? dns : dns.substr(0, dot);
 }
 
-void BusLoop(HWND host, HANDLE stop) {
+// `kick` (auto-reset, also set on exit) drops the current watch and starts a
+// new one: after the PC wakes from sleep or hibernation the old one can sit
+// there without delivering anything, which would leave incoming files unseen.
+void BusLoop(HWND host, HANDLE stop, HANDLE kick) {
   const std::string path = "/localapi/v0/watch-ipn-bus?mask=" + std::to_string(kBusMask);
   for (;;) {
+    bool kicked = false;
     {
-      lapi::Conn c(stop);
+      lapi::Conn c(kick);
       int status = 0;
       if (c.Open() && c.SendHead("GET", path, -1) && c.ReadHead(status) && status == 200) {
         std::string line;
@@ -166,10 +170,13 @@ void BusLoop(HWND host, HANDLE stop) {
           if (dirty) PostMessageW(host, WM_APP_PEERSDIRTY, 0, 0);
         }
       }
+      kicked = c.error() == ERROR_CANCELLED;
     }
     if (WaitForSingleObject(stop, 0) == WAIT_OBJECT_0) return;
+    if (kicked) continue;  // reconnect right away
     PostMessageW(host, WM_APP_CONN, static_cast<WPARAM>(Conn::NoService), 0);
-    if (WaitForSingleObject(stop, 3000) == WAIT_OBJECT_0) return;
+    HANDLE hs[2] = {stop, kick};
+    if (WaitForMultipleObjects(2, hs, FALSE, 3000) == WAIT_OBJECT_0) return;
   }
 }
 
@@ -523,6 +530,7 @@ int App::Run(const std::vector<std::wstring>& args) {
   StopDragWatch();
   ui_.Stop();
   if (stop_) SetEvent(stop_);
+  if (busKick_) SetEvent(busKick_);
   NOTIFYICONDATAW nid{sizeof(nid)};
   nid.hWnd = host_;
   nid.uID = 1;
@@ -686,7 +694,7 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
       return 0;
     }
     case WM_APP_UI_DISCONNECTED:
-      OnUiDisconnected();
+      OnUiDisconnected(static_cast<DWORD>(wp));
       return 0;
     case WM_TIMER:
       switch (wp) {
@@ -716,6 +724,9 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
         case kTimerPublish:
           KillTimer(host_, kTimerPublish);
           Flush();
+          break;
+        case kTimerUiWatch:
+          CheckUiAlive();
           break;
         case kTimerTrim:
           KillTimer(host_, kTimerTrim);
@@ -752,6 +763,9 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
       trayIconKind_ = -1;
       TrayUpdate();
       return 0;
+    case WM_POWERBROADCAST:
+      if (wp == PBT_APMRESUMEAUTOMATIC || wp == PBT_APMRESUMESUSPEND) OnResume();
+      return TRUE;
     case WM_QUERYENDSESSION:
       return TRUE;
     case WM_ENDSESSION:
@@ -877,9 +891,34 @@ void App::StopDragWatch() {
 
 void App::StartBus() {
   stop_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  busKick_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
   HWND host = host_;
-  HANDLE stop = stop_;
-  util::RunAsync([host, stop] { BusLoop(host, stop); });
+  HANDLE stop = stop_, kick = busKick_;
+  util::RunAsync([host, stop, kick] { BusLoop(host, stop, kick); });
+}
+
+// After sleep or hibernation: the tailscaled watch, the tray icon, the mouse
+// hook and the UI process may all be stale, so each is renewed.
+void App::OnResume() {
+  ULONGLONG now = GetTickCount64();
+  if (now - resumedAt_ < 3000) return;  // PBT_APMRESUMEAUTOMATIC and PBT_APMRESUMESUSPEND both arrive
+  resumedAt_ = now;
+  util::Log(L"resumed from sleep");
+  if (busKick_) SetEvent(busKick_);
+  RefreshDevices(true);
+  OnFilesWaiting();  // anything that finished while the watch was stale
+  NOTIFYICONDATAW nid{sizeof(nid)};
+  nid.hWnd = host_;
+  nid.uID = 1;
+  Shell_NotifyIconW(NIM_DELETE, &nid);
+  TrayAdd();
+  if (settings_.trayDrop) {
+    StopDragWatch();
+    StartDragWatch();
+  }
+  // A UI with nothing on screen exits (and starts fresh when needed); one that
+  // doesn't answer is replaced by the watchdog.
+  if (uiReady_) Show("{\"t\":\"resumed\"}");
 }
 
 void App::SetConn(Conn c) {
@@ -1229,6 +1268,7 @@ void App::OnIncoming(std::vector<Partial>* list) {
     if (p.done) {
       it->state = ItemState::Landing;
       it->landName = p.finalPath.empty() ? name : util::FileName(Widen(p.finalPath));
+      it->doneAt = now;
       it->deadline = now + 30000;
       if (it->size >= 0) it->received = it->size;
     }
@@ -1237,6 +1277,7 @@ void App::OnIncoming(std::vector<Partial>* list) {
     if (x->state == ItemState::Receiving && !present.count(x->name)) {
       // Finished (or aborted) between two notifications.
       x->state = ItemState::Landing;
+      x->doneAt = now;
       x->deadline = now + 30000;
     }
   }
@@ -1305,7 +1346,7 @@ bool App::TryLand(Item* it) {
 
 void App::PollLanding() {
   ULONGLONG now = GetTickCount64();
-  bool any = false, changed = false;
+  bool any = false, changed = false, stuck = false;
   for (auto& x : items_) {
     Item* it = x.get();
     if (it->state != ItemState::Landing) continue;
@@ -1314,6 +1355,9 @@ void App::PollLanding() {
       changed = true;
       continue;
     }
+    // A file being pulled from tailscaled can take a while to copy.
+    if (pulling_) it->deadline = std::max(it->deadline, now + 5000);
+    if (now - it->doneAt > 4000) stuck = true;
     if (now > it->deadline) {
       it->state = ItemState::Failed;
       it->note = "incomplete";
@@ -1321,6 +1365,14 @@ void App::PollLanding() {
       continue;
     }
     any = true;
+  }
+  // The Tailscale app normally moves finished files into Downloads within a
+  // moment. If it hasn't, fetch them from tailscaled ourselves rather than
+  // leaving the notification at "Finishing" until it gives up.
+  if (stuck && !pulling_ && now - forcedPullAt_ > 5000) {
+    forcedPullAt_ = now;
+    util::Log(L"files not handed over yet; fetching them from tailscaled");
+    OnFilesWaiting(true);
   }
   if (!any) {
     KillTimer(host_, kTimerLanding);
@@ -1340,21 +1392,22 @@ void App::ItemReady(Item* it) {
   Publish(kPubItems);
 }
 
-void App::OnFilesWaiting() {
+void App::OnFilesWaiting(bool force) {
   // Only pull files ourselves when the official Tailscale app isn't running;
-  // otherwise it saves them to Downloads and TryLand picks them up there.
-  if (pulling_ || util::IsProcessRunning(L"tailscale-ipn.exe")) return;
+  // otherwise it saves them to Downloads and TryLand picks them up there
+  // (PollLanding forces a pull when it doesn't).
+  if (pulling_ || (!force && util::IsProcessRunning(L"tailscale-ipn.exe"))) return;
   pulling_ = true;
   HWND host = host_;
   std::wstring inbox = util::InboxDir();
-  util::RunAsync([host, inbox] {
+  util::RunAsync([host, inbox, force] {
     std::vector<char> buf(64 * 1024);
     for (int round = 0; round < 4; ++round) {
       lapi::Result r = lapi::Get("/localapi/v0/files/");
       json::Value v;
       if (!r.ok() || !json::Parse(r.body, v) || v.size() == 0) break;
       for (const json::Value& f : v.items) {
-        if (util::IsProcessRunning(L"tailscale-ipn.exe")) goto done;
+        if (!force && util::IsProcessRunning(L"tailscale-ipn.exe")) goto done;
         std::string name = f["Name"].str();
         std::wstring dest = util::UniquePath(inbox, util::SafeFileName(Widen(name)));
         lapi::Conn c;
@@ -1598,16 +1651,91 @@ void App::EnsureUi(bool warm) {
   uiProcess_ = pi.hProcess;
 }
 
+void App::KillUi() {
+  DWORD pid = ui_.clientPid();
+  if (uiProcess_ && (pid == 0 || GetProcessId(uiProcess_) == pid)) {
+    TerminateProcess(uiProcess_, 1);
+    CloseHandle(uiProcess_);
+    uiProcess_ = nullptr;
+  } else if (pid) {
+    if (HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pid)) {
+      TerminateProcess(h, 1);
+      CloseHandle(h);
+    }
+  }
+}
+
 void App::Show(const std::string& json) {
-  if (ui_.connected()) {
+  ShowMsg m;
+  m.json = json;
+  m.queued = GetTickCount64();
+  m.flyout = json.find("\"what\":\"flyout\"") != std::string::npos;
+  m.transient = json.find("\"t\":\"resumed\"") != std::string::npos;
+  if (uiReady_) {
     // Keep ordering: state updates first, then what to show.
     Flush();
     AllowSetForegroundWindow(ASFW_ANY);
-    ui_.Send(json);
+    SendShow(std::move(m));
     return;
   }
-  pendingShows_.push_back(json);
+  QueueShow(std::move(m));
   EnsureUi(false);
+}
+
+// Sends a show with a sequence number; the UI acknowledges it once handled.
+void App::SendShow(ShowMsg m) {
+  m.seq = ++showSeq_;
+  m.sent = GetTickCount64();
+  std::string line = m.json;
+  if (!line.empty() && line.back() == '}') line.insert(line.size() - 1, ",\"seq\":" + std::to_string(m.seq));
+  ui_.Send(std::move(line));
+  unacked_.push_back(std::move(m));
+  SetTimer(host_, kTimerUiWatch, 1000, nullptr);
+}
+
+void App::QueueShow(ShowMsg m) {
+  if (m.transient) return;  // only for a UI that is already running
+  if (m.flyout) {
+    // A click on the tray icon is about now: one the UI never got to is stale
+    // after a few seconds, and only the latest one counts (each one toggles).
+    if (GetTickCount64() - m.queued > 5000) return;
+    pendingShows_.erase(std::remove_if(pendingShows_.begin(), pendingShows_.end(),
+                                       [](const ShowMsg& x) { return x.flyout; }),
+                        pendingShows_.end());
+  }
+  pendingShows_.push_back(std::move(m));
+  SetTimer(host_, kTimerUiWatch, 1000, nullptr);
+}
+
+// Runs every second while something is waiting on the UI. A UI that stops
+// answering (hung, or stuck on its way out with the pipe still open) is
+// replaced, so a click on the tray icon or a new notification is never lost.
+void App::CheckUiAlive() {
+  ULONGLONG now = GetTickCount64();
+  if (uiReady_) {
+    if (unacked_.empty()) {
+      KillTimer(host_, kTimerUiWatch);
+    } else if (now - unacked_.front().sent > 8000) {
+      util::Log(L"the UI isn't responding; restarting it");
+      KillUi();  // the pipe breaks and OnUiDisconnected starts a new one
+    }
+    return;
+  }
+  // Notifications stay in the flyout's list; don't keep starting a UI that won't come up.
+  pendingShows_.erase(std::remove_if(pendingShows_.begin(), pendingShows_.end(),
+                                     [now](const ShowMsg& x) { return now - x.queued > 60000; }),
+                      pendingShows_.end());
+  if (pendingShows_.empty()) {
+    KillTimer(host_, kTimerUiWatch);
+    return;
+  }
+  bool alive = uiProcess_ && WaitForSingleObject(uiProcess_, 0) == WAIT_TIMEOUT;
+  if (alive && now - uiStarted_ > 15000) {
+    util::Log(L"the UI didn't connect; restarting it");
+    KillUi();
+    alive = false;
+  }
+  if (!alive && now - uiStarted_ > 2000) EnsureUi(false);
 }
 
 void App::ShowFlyout(bool dropMode) {
@@ -1627,24 +1755,43 @@ void App::ShowWhat(const char* what) {
 std::string App::TrayJson() const { return RectJson(TrayIconRect()); }
 
 void App::OnUiConnected() {
+  uiReady_ = true;
   ui_.Send(StateJson());
   ui_.Send(SettingsJson());
   ui_.Send(DevicesJson());
   ui_.Send(ItemsJson());
   ui_.Send(JobsJson());
   dirty_ = 0;
-  if (!pendingShows_.empty()) AllowSetForegroundWindow(ASFW_ANY);
-  for (const std::string& s : pendingShows_) ui_.Send(s);
+  KillTimer(host_, kTimerPublish);
+  std::vector<ShowMsg> shows = std::move(pendingShows_);
   pendingShows_.clear();
+  if (!shows.empty()) AllowSetForegroundWindow(ASFW_ANY);
+  for (ShowMsg& m : shows) SendShow(std::move(m));
 }
 
-void App::OnUiDisconnected() {
+void App::OnUiDisconnected(DWORD pid) {
+  uiReady_ = false;
   openBatch_ = 0;  // its notification went away with the UI
+  // The UI only lets go of the pipe on its way out. Make sure it is gone
+  // rather than waiting on a process that may never finish exiting.
+  if (uiProcess_ && pid && GetProcessId(uiProcess_) == pid) {
+    if (WaitForSingleObject(uiProcess_, 0) == WAIT_TIMEOUT) TerminateProcess(uiProcess_, 0);
+    CloseHandle(uiProcess_);
+    uiProcess_ = nullptr;
+  }
+  // Whatever it hadn't handled goes to the next one.
+  std::vector<ShowMsg> again = std::move(unacked_);
+  unacked_.clear();
+  for (ShowMsg& m : pendingShows_) again.push_back(std::move(m));
+  pendingShows_.clear();
+  for (ShowMsg& m : again) QueueShow(std::move(m));
+  if (pendingShows_.empty()) KillTimer(host_, kTimerUiWatch);
+  else EnsureUi(false);
   SetTimer(host_, kTimerTrim, 2000, nullptr);
 }
 
 void App::Publish(unsigned what) {
-  if (!ui_.connected()) return;
+  if (!uiReady_) return;
   if (!dirty_) SetTimer(host_, kTimerPublish, 40, nullptr);
   dirty_ |= what;
 }
@@ -1653,7 +1800,7 @@ void App::Flush() {
   unsigned d = dirty_;
   dirty_ = 0;
   KillTimer(host_, kTimerPublish);
-  if (!ui_.connected()) return;
+  if (!uiReady_) return;
   if (d & kPubState) ui_.Send(StateJson());
   if (d & kPubSettings) ui_.Send(SettingsJson());
   if (d & kPubDevices) ui_.Send(DevicesJson());
@@ -1783,7 +1930,11 @@ void App::OnUiCommand(const std::string& line) {
   } else if (c == "cancel") CancelJob(static_cast<int>(v["job"].i64()));
   else if (c == "retry") RetryJob(static_cast<int>(v["job"].i64()));
   else if (c == "dismissJob") DismissJob(static_cast<int>(v["job"].i64()));
-  else if (c == "toastClosed") {
+  else if (c == "ack") {
+    int seq = static_cast<int>(v["seq"].i64());
+    unacked_.erase(std::remove_if(unacked_.begin(), unacked_.end(), [seq](const ShowMsg& m) { return m.seq <= seq; }),
+                   unacked_.end());
+  } else if (c == "toastClosed") {
     if (openBatch_ == static_cast<int>(v["batch"].i64())) openBatch_ = 0;
   } else if (c == "favorite") SetFavorite(device, v["on"].boolean());
   else if (c == "kind") {

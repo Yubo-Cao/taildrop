@@ -24,6 +24,8 @@ public interface IToastContent
 public sealed partial class ToastWindow : Window
 {
     public const double WidthDips = 364;
+    /// <summary>A notification stays on screen at least this long before it may go away on its own.</summary>
+    public const int MinVisibleMs = 30000;
 
     public IToastContent Toast { get; }
     public bool Ready { get; private set; }
@@ -31,7 +33,9 @@ public sealed partial class ToastWindow : Window
 
     private readonly DispatcherQueueTimer _timer;
     private DateTime _dismissAt = DateTime.MaxValue;
-    private bool _hover;
+    private DateTime _shownAt = DateTime.MaxValue;
+    private bool _hover, _hidden;
+    private int _ticks;
 
     public event Action? NeedsLayout;
     public event Action? Gone;
@@ -54,8 +58,14 @@ public sealed partial class ToastWindow : Window
         _timer.Interval = TimeSpan.FromMilliseconds(500);
         _timer.Tick += (_, _) =>
         {
-            if (_hover) _dismissAt = DateTime.Now.AddMilliseconds(Math.Max(1500, (_dismissAt - DateTime.Now).TotalMilliseconds));
+            // Time under the pointer or hidden behind the flyout doesn't count.
+            if (_hidden && _shownAt != DateTime.MaxValue) _shownAt = _shownAt.AddMilliseconds(500);
+            if (_hover || _hidden) _dismissAt = DateTime.Now.AddMilliseconds(Math.Max(1500, (_dismissAt - DateTime.Now).TotalMilliseconds));
             else if (DateTime.Now >= _dismissAt) Leave();
+            // Stay above windows that made themselves topmost later.
+            if (!_hidden && !Leaving && ++_ticks % 4 == 0)
+                Native.SetWindowPos(Popups.Hwnd(this), Native.HWND_TOPMOST, 0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
         };
         _timer.Start();
         Closed += (_, _) => _timer.Stop();
@@ -81,6 +91,11 @@ public sealed partial class ToastWindow : Window
 
     public void Enter(PointInt32 target, bool fromRight)
     {
+        if (_shownAt == DateTime.MaxValue)
+        {
+            _shownAt = DateTime.Now;
+            ArmDismiss();
+        }
         int offset = (int)(48 * Popups.Scale(this));
         AppWindow.Move(fromRight ? new PointInt32(target.X + offset, target.Y) : new PointInt32(target.X, target.Y + offset));
         Popups.Fade(Toast.Root, 0, 1, 200, Popups.Decelerate);
@@ -92,6 +107,7 @@ public sealed partial class ToastWindow : Window
     public void SetHidden(bool hidden)
     {
         if (Leaving || !Ready) return;
+        _hidden = hidden;
         if (hidden) AppWindow.Hide();
         else AppWindow.Show(false);
     }
@@ -115,7 +131,14 @@ public sealed partial class ToastWindow : Window
     private void ArmDismiss()
     {
         int ms = Toast.AutoDismissMs;
-        _dismissAt = ms > 0 ? DateTime.Now.AddMilliseconds(ms) : DateTime.MaxValue;
+        if (ms <= 0)
+        {
+            _dismissAt = DateTime.MaxValue;
+            return;
+        }
+        DateTime shown = _shownAt == DateTime.MaxValue ? DateTime.Now : _shownAt;
+        DateTime earliest = shown.AddMilliseconds(MinVisibleMs), wanted = DateTime.Now.AddMilliseconds(ms);
+        _dismissAt = wanted > earliest ? wanted : earliest;
     }
 }
 
