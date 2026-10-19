@@ -54,6 +54,32 @@ internal static partial class Native
     /// <summary>Ends the process now, without waiting on WinUI's shutdown.</summary>
     public static void ExitNow() => TerminateProcess(GetCurrentProcess(), 0);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_POWER_THROTTLING_STATE
+    {
+        public uint Version, ControlMask, StateMask;
+    }
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetProcessInformation(nint process, int cls, ref PROCESS_POWER_THROTTLING_STATE info, int size);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetPriorityClass(nint process, uint priority);
+
+    /// <summary>
+    /// Keeps Windows from putting this mostly idle process into efficiency mode
+    /// (EcoQoS, low priority), which makes the first window after a while slow.
+    /// </summary>
+    public static void DisableThrottling()
+    {
+        // ProcessPowerThrottling = 4; PROCESS_POWER_THROTTLING_EXECUTION_SPEED = 1; state 0 = off.
+        var s = new PROCESS_POWER_THROTTLING_STATE { Version = 1, ControlMask = 1, StateMask = 0 };
+        SetProcessInformation(GetCurrentProcess(), 4, ref s, Marshal.SizeOf<PROCESS_POWER_THROTTLING_STATE>());
+        SetPriorityClass(GetCurrentProcess(), 0x20);  // NORMAL_PRIORITY_CLASS
+    }
+
     [LibraryImport("dwmapi.dll")]
     public static partial int DwmSetWindowAttribute(nint hwnd, int attr, ref int value, int size);
 

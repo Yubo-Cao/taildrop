@@ -20,7 +20,7 @@
   <Identity
     Name="YuboCao.TailDrop"
     Publisher="CN=YuboCao.TailDrop"
-    Version="1.1.1.0"
+    Version="1.1.2.0"
     ProcessorArchitecture="neutral" />
   <Properties>
     <DisplayName>TailDrop</DisplayName>

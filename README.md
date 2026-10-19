@@ -88,7 +88,7 @@ Uninstalling keeps files still waiting in the inbox (`uninstall.ps1 -RemoveInbox
 TailDrop is two programs:
 
 - `TailDrop.exe` is the part that always runs: tray icon, Tailscale connection, transfers, and the Explorer menu's backend. It is plain Win32 C++ with no UI framework, so it idles at about 2&nbsp;MB.
-- `ui\TailDropUI.exe` draws every window: the tray flyout, notifications, Settings and the dialogs. It is WinUI&nbsp;3 (Windows App SDK, bundled, compiled ahead of time with .NET NativeAOT). TailDrop.exe starts it when something needs to be on screen and warms it up when the pointer reaches the tray icon. The two talk over a named pipe that only the current user can open. The interface exits a minute after its last window closes.
+- `ui\TailDropUI.exe` draws every window: the tray flyout, notifications, Settings and the dialogs. It is WinUI&nbsp;3 (Windows App SDK, bundled, compiled ahead of time with .NET NativeAOT). TailDrop.exe starts it at sign-in and keeps it running (about 100&nbsp;MB), so the flyout opens at once however long it has been; if it exits or stops responding, TailDrop starts a new one. The two talk over a named pipe that only the current user can open.
 
 The rest:
 

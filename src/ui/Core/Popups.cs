@@ -154,9 +154,27 @@ public static class Popups
     /// window is now (its laid-out height is capped by the window).</summary>
     public static double LaidOutHeight(FrameworkElement root)
     {
+        // An ItemsRepeater whose items just changed (the first state arriving with the
+        // first show) can throw "already the child of another element" when measured
+        // outside a layout pass; a normal pass settles it first.
+        try
+        {
+            root.UpdateLayout();
+        }
+        catch (Exception e)
+        {
+            Log.Write("layout: " + e.Message);
+        }
         double width = double.IsNaN(root.Width) ? root.ActualWidth : root.Width;
-        root.Measure(new Windows.Foundation.Size(width > 0 ? width : double.PositiveInfinity, double.PositiveInfinity));
-        return root.DesiredSize.Height;
+        try
+        {
+            root.Measure(new Windows.Foundation.Size(width > 0 ? width : double.PositiveInfinity, double.PositiveInfinity));
+        }
+        catch (Exception e)
+        {
+            Log.Write("measure: " + e.Message);
+        }
+        return root.DesiredSize.Height > 0 ? root.DesiredSize.Height : root.ActualHeight;
     }
 
     public static RectInt32 WorkArea(int[]? tray)

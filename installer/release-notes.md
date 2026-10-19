@@ -1,6 +1,11 @@
 An AirDrop-style companion for Tailscale Taildrop on Windows 10 and 11 (x64).
 
-**New in 1.1.1**
+**New in 1.1.2**
+
+- The tray flyout opens at once even when you haven't used TailDrop for hours. The interface now stays running in the background instead of exiting a minute after its last window closes, and Windows no longer puts it in efficiency mode. This uses more memory (about 100 MB) in exchange for no cold start.
+- Fixed an error that could close the interface when the flyout opened right after TailDrop started.
+
+**Also in 1.1.1**
 
 - After the PC wakes from sleep or hibernation, TailDrop reconnects to Tailscale, re-adds its tray icon and restarts the drag-to-tray watch, so tray clicks and incoming files no longer go unnoticed.
 - A click on the tray icon always gets an answer: if the interface stops responding, TailDrop restarts it within a few seconds and shows what you asked for.
@@ -9,7 +14,7 @@ An AirDrop-style companion for Tailscale Taildrop on Windows 10 and 11 (x64).
 
 **Also in 1.1**
 
-- Every window is now WinUI 3: the tray flyout, notifications, Settings and the send and sign-in dialogs, with WinUI's own controls and motion. They are drawn by a separate `TailDropUI.exe` that starts only when something is on screen. The part that keeps running in the background idles at about 2 MB.
+- Every window is now WinUI 3: the tray flyout, notifications, Settings and the send and sign-in dialogs, with WinUI's own controls and motion. They are drawn by a separate `TailDropUI.exe`; the Tailscale connection and transfers run in a native part that idles at about 2 MB.
 - Settings uses the Windows 11 Settings layout: a sidebar with your Tailscale account, the title bar drawn into the window, and a page for each device where you can choose its icon and name and make it a favorite.
 - The Explorer submenu shows favorites, then the devices you sent to recently, then the rest (online first).
 - The send window ("Other devices…", or files dropped without a device) is a proper window with the same title bar, and you can add more files to it.

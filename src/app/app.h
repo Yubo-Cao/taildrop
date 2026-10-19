@@ -252,6 +252,7 @@ class App {
   bool uiReady_ = false;  // connected and given the initial state
   HANDLE uiProcess_ = nullptr;
   ULONGLONG uiStarted_ = 0;
+  int uiFailures_ = 0;  // starts in a row that never connected
   std::vector<ShowMsg> pendingShows_, unacked_;
   int showSeq_ = 0;
   unsigned dirty_ = 0;
@@ -281,4 +282,5 @@ enum : UINT_PTR {
   kTimerJobs,
   kTimerTrim,
   kTimerUiWatch,
+  kTimerUiRespawn,
 };

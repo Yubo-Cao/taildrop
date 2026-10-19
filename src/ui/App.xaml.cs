@@ -8,16 +8,14 @@ namespace TailDrop.UI;
 
 /// <summary>
 /// TailDropUI.exe: every window TailDrop shows. TailDrop.exe starts it with
-/// --pipe when something needs to be on screen (or --warm when the pointer
-/// reaches the tray icon); it exits after a minute with nothing open.
+/// --pipe at startup and keeps it running, so the flyout opens at once however
+/// long it has been; it exits only when the host goes away or replaces it.
 /// </summary>
 public partial class App : Application
 {
     public static App Instance => (App)Current;
 
     private DispatcherQueue? _ui;
-    private DispatcherQueueTimer? _idle;
-    private int _idleSeconds;
     private int _busy;  // open file/folder dialogs
     private FlyoutWindow? _flyout;
     private SettingsWindow? _settings;
@@ -57,32 +55,16 @@ public partial class App : Application
         {
             if (Store.Connected && _error != null) _error.Close();
         };
-        Store.Resumed += () =>
-        {
-            // After sleep or hibernation, a UI with nothing on screen makes way for a
-            // fresh one; the next thing to show starts it again.
-            if (!Anything()) Quit();
-        };
         HostLink.Disconnected += Quit;
         if (!await HostLink.ConnectAsync(argv[at + 1], _ui))
         {
             Quit();
             return;
         }
-        _idle = _ui.CreateTimer();
-        _idle.Interval = TimeSpan.FromSeconds(5);
-        _idle.Tick += (_, _) => CheckIdle();
-        _idle.Start();
-    }
-
-    private bool Anything() =>
-        _busy > 0 || (_flyout?.IsShown ?? false) || _settings != null || _picker != null || _error != null ||
-        (_toasts?.Count ?? 0) > 0;
-
-    private void CheckIdle()
-    {
-        _idleSeconds = Anything() ? 0 : _idleSeconds + 5;
-        if (_idleSeconds >= 60) Quit();
+        // Resident: stay out of efficiency mode, and build the flyout now so the
+        // first click only has to show it.
+        Native.DisableThrottling();
+        _ui.TryEnqueue(DispatcherQueuePriority.Low, () => Flyout());
     }
 
     private bool _quitting;
@@ -95,7 +77,6 @@ public partial class App : Application
     {
         if (_quitting) return;
         _quitting = true;
-        _idle?.Stop();
         HostLink.Close();
         _ = Task.Delay(2000).ContinueWith(_ => Native.ExitNow(), TaskScheduler.Default);
         try
@@ -110,7 +91,6 @@ public partial class App : Application
 
     private void OnShow(ShowMsg msg)
     {
-        _idleSeconds = 0;
         switch (msg.What)
         {
             case "flyout":
@@ -136,7 +116,6 @@ public partial class App : Application
 
     private void OnNotify(NotifyMsg msg)
     {
-        _idleSeconds = 0;
         if (msg.Batch > 0) _toasts!.ShowBatch(msg.Batch, msg.Tray);
         else if (msg.Job > 0) _toasts!.ShowJob(msg.Job, msg.Tray);
     }

@@ -517,6 +517,7 @@ int App::Run(const std::vector<std::wstring>& args) {
   StartBus();
   RefreshDevices();
   if (settings_.trayDrop) StartDragWatch();
+  EnsureUi(true);  // the UI stays resident so the flyout opens at once
   SetTimer(host_, kTimerJobs, 60000, nullptr);
   // Startup touches a lot of code once; give those pages back when it settles.
   SetTimer(host_, kTimerTrim, 15000, nullptr);
@@ -728,6 +729,10 @@ LRESULT App::HostMessage(UINT msg, WPARAM wp, LPARAM lp) {
         case kTimerUiWatch:
           CheckUiAlive();
           break;
+        case kTimerUiRespawn:
+          KillTimer(host_, kTimerUiRespawn);
+          if (!uiReady_) EnsureUi(false);
+          break;
         case kTimerTrim:
           KillTimer(host_, kTimerTrim);
           SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
@@ -916,8 +921,8 @@ void App::OnResume() {
     StopDragWatch();
     StartDragWatch();
   }
-  // A UI with nothing on screen exits (and starts fresh when needed); one that
-  // doesn't answer is replaced by the watchdog.
+  // The UI acknowledges this like any show; one that doesn't answer is
+  // replaced by the watchdog.
   if (uiReady_) Show("{\"t\":\"resumed\"}");
 }
 
@@ -1637,6 +1642,7 @@ void App::EnsureUi(bool warm) {
   ULONGLONG now = GetTickCount64();
   if (warm && now - uiStarted_ < 10000) return;
   uiStarted_ = now;
+  ++uiFailures_;  // until it connects
   std::wstring exe = util::Join(util::Join(util::ExeDir(), L"ui"), L"TailDropUI.exe");
   std::wstring cmd = L"\"" + exe + L"\" --pipe \"" + ui_.pipeName() + L"\"" + (warm ? L" --warm" : L"");
   STARTUPINFOW si{sizeof(si)};
@@ -1756,6 +1762,7 @@ std::string App::TrayJson() const { return RectJson(TrayIconRect()); }
 
 void App::OnUiConnected() {
   uiReady_ = true;
+  uiFailures_ = 0;
   ui_.Send(StateJson());
   ui_.Send(SettingsJson());
   ui_.Send(DevicesJson());
@@ -1785,8 +1792,14 @@ void App::OnUiDisconnected(DWORD pid) {
   for (ShowMsg& m : pendingShows_) again.push_back(std::move(m));
   pendingShows_.clear();
   for (ShowMsg& m : again) QueueShow(std::move(m));
-  if (pendingShows_.empty()) KillTimer(host_, kTimerUiWatch);
-  else EnsureUi(false);
+  if (!pendingShows_.empty()) {
+    EnsureUi(false);
+  } else {
+    KillTimer(host_, kTimerUiWatch);
+    // Keep one running. A UI that keeps failing to come up is left to start on
+    // demand instead, and retries back off.
+    if (uiFailures_ < 5) SetTimer(host_, kTimerUiRespawn, 3000u << uiFailures_, nullptr);
+  }
   SetTimer(host_, kTimerTrim, 2000, nullptr);
 }
 
