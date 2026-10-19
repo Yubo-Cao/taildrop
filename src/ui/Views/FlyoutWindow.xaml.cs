@@ -47,6 +47,19 @@ public sealed partial class FlyoutWindow : Window
         InboxLabel.Text = Str.Get("InboxButton");
         ToolTipService.SetToolTip(InboxButton, Str.Get("OpenInboxTooltip"));
         ToolTipService.SetToolTip(SettingsButton, Str.Get("Settings"));
+        PasteHint.Text = Str.Get("PasteHint");
+
+        // Ctrl+V sends the clipboard to the tile under the pointer (or the focused
+        // one); with neither, it opens the picker.
+        var paste = new KeyboardAccelerator { Key = Windows.System.VirtualKey.V, Modifiers = Windows.System.VirtualKeyModifiers.Control };
+        paste.Invoked += async (_, a) =>
+        {
+            a.Handled = true;
+            await PasteAsync();
+        };
+        Root.KeyboardAccelerators.Add(paste);
+        Root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+        Clipboard.ContentChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdatePasteHint);
 
         Store.StateChanged += Refresh;
         Store.DevicesChanged += Refresh;
@@ -86,6 +99,7 @@ public sealed partial class FlyoutWindow : Window
         _dropMode = dropMode;
         _hiding = false;
         Refresh();
+        UpdatePasteHint();
         var aw = AppWindow;
         bool wasShown = _shown;
         if (!wasShown)
@@ -308,7 +322,7 @@ public sealed partial class FlyoutWindow : Window
     {
         var vm = Vm(sender);
         e.Handled = true;
-        if (vm == null || !e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        if (vm == null || !Incoming.CanAccept(e.DataView)) return;
         SetZoneDrag(true);
         e.DragUIOverride.IsCaptionVisible = true;
         e.DragUIOverride.IsGlyphVisible = true;
@@ -329,6 +343,30 @@ public sealed partial class FlyoutWindow : Window
             e.AcceptedOperation = DataPackageOperation.None;
             e.DragUIOverride.Caption = Str.F("DropOffline", vm.Name);
         }
+    }
+
+    /// <summary>The device tile the mouse is over right now, if any.</summary>
+    private DeviceVm? TileUnderPointer()
+    {
+        if (!Native.GetCursorPos(out var pt) || !Native.ScreenToClient(Popups.Hwnd(this), ref pt)) return null;
+        double scale = Root.XamlRoot?.RasterizationScale ?? 1;
+        var at = new Windows.Foundation.Point(pt.X / scale, pt.Y / scale);
+        foreach (var e in VisualTreeHelper.FindElementsInHostCoordinates(at, Root))
+            if (e is Button b && Vm(b) is { } vm) return vm;
+        return null;
+    }
+
+    private void UpdatePasteHint() => PasteHint.Visibility = App.CanPaste() ? Visibility.Visible : Visibility.Collapsed;
+
+    private async Task PasteAsync()
+    {
+        var target = TileUnderPointer();
+        if (target == null && Content?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is FrameworkElement f)
+            target = Vm(f);
+        if (!App.CanPaste()) return;
+        string? device = target is { IsMore: false, Online: true } ? target.Id : null;
+        Hide();
+        await App.Instance.PasteAsync(device);
     }
 
     private void OnTileDragLeave(object sender, DragEventArgs e)
@@ -352,7 +390,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void OnZoneDragOver(object sender, DragEventArgs e)
     {
-        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        if (!Incoming.CanAccept(e.DataView)) return;
         SetZoneDrag(true);
         e.AcceptedOperation = DataPackageOperation.Copy;
         e.DragUIOverride.Caption = Str.Get("DropChoose");
@@ -384,22 +422,16 @@ public sealed partial class FlyoutWindow : Window
 
     public static async Task<List<string>> DroppedPathsAsync(DragEventArgs e)
     {
-        var paths = new List<string>();
-        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return paths;
+        if (!Incoming.CanAccept(e.DataView)) return new List<string>();
         var deferral = e.GetDeferral();
         try
         {
-            foreach (var item in await e.DataView.GetStorageItemsAsync())
-                if (!string.IsNullOrEmpty(item.Path)) paths.Add(item.Path);
-        }
-        catch
-        {
+            return await Incoming.PathsAsync(e.DataView);
         }
         finally
         {
             deferral.Complete();
         }
-        return paths;
     }
 
     // ------------------------------------------------------------------
@@ -426,35 +458,28 @@ public sealed partial class FlyoutWindow : Window
         if (sender is Grid g) g.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
     }
 
+    // A click copies the file (as Explorer's Copy does), a double-click opens it,
+    // and a drag hands it over.
     private void OnRowTapped(object sender, TappedRoutedEventArgs e)
     {
         if (FromButton(e.OriginalSource)) return;
+        if (Row(sender) is not { } vm || Store.Item(vm.Id) is not { HasFile: true } item) return;
+        if (!ShellData.Copy(new[] { item.Path })) return;
+        vm.Status = Str.Get("CopiedToClipboard");
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(2);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            if (Store.Item(vm.Id) is { } now) vm.Status = ItemStatus(now);
+        };
+        timer.Start();
+    }
+
+    private void OnRowDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if (FromButton(e.OriginalSource)) return;
         if (Row(sender) is { } vm && vm.State is "pending" or "saved") HostLink.Open(vm.Id);
-    }
-
-    private void OnRowSave(object sender, RoutedEventArgs e)
-    {
-        if (Row(sender) is { } vm) HostLink.Save(vm.Id);
-    }
-
-    private void OnRowOpen(object sender, RoutedEventArgs e)
-    {
-        if (Row(sender) is { } vm) HostLink.Open(vm.Id);
-    }
-
-    private void OnRowRemove(object sender, RoutedEventArgs e)
-    {
-        if (Row(sender) is not { } vm) return;
-        if (vm.State == "pending") HostLink.Discard(vm.Id);
-        else HostLink.Forget(vm.Id);
-    }
-
-    private void OnRowRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        if (Row(sender) is not { } vm) return;
-        var menu = ItemMenu.Create(vm.Id, this);
-        menu.ShowAt((FrameworkElement)sender, e.GetPosition((FrameworkElement)sender));
-        e.Handled = true;
     }
 
     private async void OnRowDragStarting(UIElement sender, DragStartingEventArgs args)
@@ -484,6 +509,31 @@ public sealed partial class FlyoutWindow : Window
     }
 
     private void OnRowDropCompleted(UIElement sender, DropCompletedEventArgs args) => HostLink.DragDone();
+
+    private void OnRowSave(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is { } vm) HostLink.Save(vm.Id);
+    }
+
+    private void OnRowOpen(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is { } vm) HostLink.Open(vm.Id);
+    }
+
+    private void OnRowRemove(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is not { } vm) return;
+        if (vm.State == "pending") HostLink.Discard(vm.Id);
+        else HostLink.Forget(vm.Id);
+    }
+
+    private void OnRowRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (Row(sender) is not { } vm) return;
+        var menu = ItemMenu.Create(vm.Id, this);
+        menu.ShowAt((FrameworkElement)sender, e.GetPosition((FrameworkElement)sender));
+        e.Handled = true;
+    }
 
     private void OnSaveAll(object sender, RoutedEventArgs e)
     {

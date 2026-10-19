@@ -35,6 +35,10 @@ internal static partial class Native
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ScreenToClient(nint hwnd, ref POINT pt);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWindowVisible(nint hwnd);
 
     public static readonly nint HWND_TOPMOST = -1;

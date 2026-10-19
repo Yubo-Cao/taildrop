@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(TailDrop VERSION 1.1.2 LANGUAGES CXX RC)
+project(TailDrop VERSION 1.1.3 LANGUAGES CXX RC)
 
 if(NOT MSVC)
   message(FATAL_ERROR "TailDrop is a native Windows app; build it with MSVC (see build.ps1).")

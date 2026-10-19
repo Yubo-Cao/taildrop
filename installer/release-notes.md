@@ -1,6 +1,12 @@
 An AirDrop-style companion for Tailscale Taildrop on Windows 10 and 11 (x64).
 
-**New in 1.1.2**
+**New in 1.1.3**
+
+- Paste to send: with the flyout open, press Ctrl+V to send the clipboard to the device under the pointer, or choose a device for it. A device's right-click menu has **Paste and send** too. The flyout shows a hint when there's something to paste.
+- Besides files, you can now paste or drop a screenshot or copied image (sent as a PNG), copied text (sent as a .txt), and files that exist only inside another app, such as a mail attachment or a browser download. These keep their name and type instead of being ignored.
+- Click a received file in the flyout to copy it to the clipboard, the same as Copy in File Explorer; double-click opens it. The right-click menu also has **Copy**.
+
+**Also in 1.1.2**
 
 - The tray flyout opens at once even when you haven't used TailDrop for hours. The interface now stays running in the background instead of exiting a minute after its last window closes, and Windows no longer puts it in efficiency mode. This uses more memory (about 100 MB) in exchange for no cold start.
 - Fixed an error that could close the interface when the flyout opened right after TailDrop started.

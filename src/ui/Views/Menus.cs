@@ -22,6 +22,20 @@ public static class DeviceMenu
         };
         menu.Items.Add(send);
 
+        var paste = new MenuFlyoutItem
+        {
+            Text = Str.Get("PasteAndSend"),
+            Icon = new FontIcon { Glyph = "" },
+            KeyboardAcceleratorTextOverride = "Ctrl+V",
+            IsEnabled = d.Online && App.CanPaste(),
+        };
+        paste.Click += async (_, _) =>
+        {
+            beforeLeaving?.Invoke();
+            await App.Instance.PasteAsync(deviceId);
+        };
+        menu.Items.Add(paste);
+
         var fav = new MenuFlyoutItem
         {
             Text = Str.Get(d.Favorite ? "RemoveFavorite" : "AddFavorite"),
@@ -102,6 +116,9 @@ public static class ItemMenu
         }
         if (i.HasFile)
         {
+            var copy = new MenuFlyoutItem { Text = Str.Get("Copy"), Icon = new FontIcon { Glyph = "" }, KeyboardAcceleratorTextOverride = "Ctrl+C" };
+            copy.Click += (_, _) => ShellData.Copy(new[] { i.Path });
+            menu.Items.Add(copy);
             var open = new MenuFlyoutItem { Text = Str.Get("Open"), Icon = new FontIcon { Glyph = "" } };
             open.Click += (_, _) => HostLink.Open(itemId);
             menu.Items.Add(open);

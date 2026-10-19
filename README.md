@@ -42,6 +42,7 @@ TailDrop is unofficial and not affiliated with Tailscale Inc. "Tailscale" and "T
 **Sending**
 - Left-click the tray icon for the flyout: drop files on a device tile, or click a tile to choose files.
 - Drag files onto the tray icon itself and a drop shelf opens above it.
+- Paste instead of dropping: with the flyout open, Ctrl+V sends what's on the clipboard to the tile under the pointer (or opens the picker). Copied files, a screenshot or copied image (sent as a PNG), copied text (sent as a .txt), and files that exist only inside another app, such as a mail attachment, all work, and the same goes for dropping them. A device's right-click menu also has **Paste and send**.
 - Right-click files or folders in File Explorer and choose **Send with TailDrop**. Up to three favorite devices appear directly in the submenu; **Other devices…** opens a picker with every device.
 - Folders are sent as a `.zip` that is built while it uploads, so there is no temporary copy.
 - Progress, speed, cancel and retry in the send notification.

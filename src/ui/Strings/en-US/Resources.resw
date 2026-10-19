@@ -504,4 +504,25 @@
   <data name="TimeLeftMinutes" xml:space="preserve">
     <value>About {0} min left</value>
   </data>
+  <data name="Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="CopiedToClipboard" xml:space="preserve">
+    <value>Copied to clipboard</value>
+  </data>
+  <data name="PasteAndSend" xml:space="preserve">
+    <value>Paste and send</value>
+  </data>
+  <data name="PasteHint" xml:space="preserve">
+    <value>Ctrl+V to send the clipboard</value>
+  </data>
+  <data name="PastedImageName" xml:space="preserve">
+    <value>Image {0}</value>
+  </data>
+  <data name="PastedTextName" xml:space="preserve">
+    <value>Text {0}</value>
+  </data>
+  <data name="PastedFileName" xml:space="preserve">
+    <value>File {0}</value>
+  </data>
 </root>

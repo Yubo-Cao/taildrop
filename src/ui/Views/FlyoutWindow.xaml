@@ -61,7 +61,11 @@
                 </Border>
 
                 <StackPanel x:Name="OnlinePanel">
-                    <TextBlock x:Name="SendLabel" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,2,0,10" />
+                    <Grid Margin="2,2,0,10">
+                        <TextBlock x:Name="SendLabel" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="PasteHint" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="Collapsed" />
+                    </Grid>
                     <Grid x:Name="DropZone" AllowDrop="True" Background="Transparent"
                           DragOver="OnZoneDragOver" DragLeave="OnZoneDragLeave" Drop="OnZoneDrop">
                         <Border x:Name="ZoneHighlight" Margin="-6" CornerRadius="8" Opacity="0" IsHitTestVisible="False"
@@ -123,7 +127,7 @@
                                 <Grid Tag="{x:Bind Self}" Height="52" Margin="-8,0,-8,0" Padding="8,0,4,0" CornerRadius="4" Background="Transparent"
                                       ColumnSpacing="12" CanDrag="True" DragStarting="OnRowDragStarting" DropCompleted="OnRowDropCompleted"
                                       PointerEntered="OnRowPointerEntered" PointerExited="OnRowPointerExited"
-                                      Tapped="OnRowTapped" RightTapped="OnRowRightTapped">
+                                      Tapped="OnRowTapped" DoubleTapped="OnRowDoubleTapped" RightTapped="OnRowRightTapped">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />

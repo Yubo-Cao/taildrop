@@ -65,6 +65,7 @@ public partial class App : Application
         // first click only has to show it.
         Native.DisableThrottling();
         _ui.TryEnqueue(DispatcherQueuePriority.Low, () => Flyout());
+        _ = Task.Run(Incoming.CleanUp);
     }
 
     private bool _quitting;
@@ -165,6 +166,42 @@ public partial class App : Application
             _error.Closed += (_, _) => _error = null;
         }
         _error.Present();
+    }
+
+    /// <summary>Whether the clipboard holds something Paste can send.</summary>
+    public static bool CanPaste()
+    {
+        try
+        {
+            return Incoming.CanAccept(Windows.ApplicationModel.DataTransfer.Clipboard.GetContent());
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sends what is on the clipboard (files, a picture, text) to `deviceId`, or opens
+    /// the picker with it; false if there was nothing to send.
+    /// </summary>
+    public async Task<bool> PasteAsync(string? deviceId)
+    {
+        Windows.ApplicationModel.DataTransfer.DataPackageView view;
+        try
+        {
+            view = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+        }
+        catch
+        {
+            return false;
+        }
+        if (!Incoming.CanAccept(view)) return false;
+        var paths = await Incoming.PathsAsync(view);
+        if (paths.Count == 0) return false;
+        if (deviceId != null && Store.Device(deviceId) is { Online: true }) HostLink.SendFiles(deviceId, paths);
+        else OpenPicker(paths);
+        return true;
     }
 
     /// <summary>Lets the user choose files, then sends them to `deviceId` or opens the picker.</summary>
